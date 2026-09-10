@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.local
+.env.production
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data & backups (keep examples, ignore real data)
+04-data/backups/*.sql
+04-data/backups/*.tar.gz
+!04-data/backups/.gitkeep
+!04-data/backups/README.md
