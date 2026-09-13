@@ -4,9 +4,5 @@
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
-  "observability": { "enabled": true },
-  "vars": {
-    "VAPID_PUBLIC_KEY": "",
-    "VAPID_SUBJECT": "mailto:admin@example.com"
-  }
+  "observability": { "enabled": true }
 }
