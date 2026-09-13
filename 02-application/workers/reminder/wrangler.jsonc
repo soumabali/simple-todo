@@ -1,0 +1,8 @@
+{
+  "name": "flowboard-reminder",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "observability": { "enabled": true }
+}

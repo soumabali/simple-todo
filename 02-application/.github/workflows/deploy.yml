@@ -1,0 +1,64 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
+      - run: npm run build
+
+  deploy:
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+
+      # 1. Apply the Neon policy (auth, buckets, branch). Requires NEON_API_KEY.
+      #    `--allow-protected` is only valid because this is the protected
+      #    production branch (PRD §12.7).
+      - name: Apply Neon policy
+        run: |
+          npx neon@latest deploy \
+            --project-id wandering-band-92657113 \
+            --branch ${{ github.ref == 'refs/heads/main' && 'production' || 'develop' }} \
+            --allow-protected --update-existing --no-env-pull
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+
+      # 2. Run database migrations BEFORE deploying code (PRD §12.5).
+      - name: Run database migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.NEON_PRODUCTION_URL || secrets.NEON_DEVELOP_URL }}
+
+      # 3. Deploy the web Worker.
+      - name: Deploy web Worker
+        run: npx opennextjs-cloudflare build && npx opennextjs-cloudflare deploy
+
+      # 4. Deploy the reminder Worker.
+      - name: Deploy reminder Worker
+        run: npx wrangler deploy --config workers/reminder/wrangler.jsonc
+
+      # 5. Smoke test (uncomment once `npm run test:smoke` exists).
+      # - name: Smoke test
+      #   run: npm run test:smoke
