@@ -392,7 +392,15 @@ function Column({
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-medium text-sm truncate">{status.name}</span>
             <span className="text-xs shrink-0" style={{ color: "var(--muted)" }}>{tasks.length}</span>
-            {status.isDone && <span className="chip chip-emerald shrink-0">Done</span>}
+            {status.isDone && (
+              <span
+                className="text-xs shrink-0"
+                title="This is the 'done' column"
+                style={{ color: "var(--success)" }}
+              >
+                ✓
+              </span>
+            )}
           </div>
         )}
 
