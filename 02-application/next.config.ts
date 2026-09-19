@@ -15,7 +15,12 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'wasm-unsafe-eval'",
+      // NOTE: Next.js App Router injects its React Server Component payload
+      // and bootstrap via inline <script> tags. Without a nonce, `script-src`
+      // MUST include 'unsafe-inline' or the browser blocks hydration and the
+      // page renders blank white (BUG-6). A nonce-based CSP is the proper
+      // hardening follow-up; 'unsafe-inline' is required for now.
+      "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
