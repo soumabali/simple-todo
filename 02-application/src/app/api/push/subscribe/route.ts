@@ -4,6 +4,11 @@ import { requireUser, errorResponse, ApiError } from "@/lib/session";
 import { pushSubscriptions } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 
+/** Unpadded base64url (the encoding used for Web Push p256dh/auth keys). */
+function isBase64Url(value: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
 /** POST /api/push/subscribe — store a subscription (max 10 devices). */
 export async function POST(req: NextRequest) {
   try {
@@ -12,8 +17,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const endpoint = String(body.endpoint ?? "");
-    if (!endpoint || !body.p256dh || !body.auth) {
+    const p256dh = String(body.p256dh ?? "");
+    const auth = String(body.auth ?? "");
+    if (!endpoint || !p256dh || !auth) {
       throw new ApiError("BAD_REQUEST", "Invalid subscription");
+    }
+
+    // p256dh and auth are unpadded base64url strings (per the Web Push spec).
+    // Reject garbage early so the reminder worker never tries to sign/encrypt
+    // against a malformed key (it would fail every delivery).
+    if (!isBase64Url(p256dh) || !isBase64Url(auth)) {
+      throw new ApiError("BAD_REQUEST", "Invalid subscription keys");
     }
 
     // Validate the endpoint belongs to a known push service (PRD §11).
@@ -39,16 +53,16 @@ export async function POST(req: NextRequest) {
       .values({
         userId: session.user.id,
         endpoint,
-        p256dh: String(body.p256dh),
-        auth: String(body.auth),
+        p256dh,
+        auth,
         deviceLabel: body.deviceLabel ?? null,
         isStandalone: Boolean(body.isStandalone),
       })
       .onConflictDoUpdate({
         target: pushSubscriptions.endpoint,
         set: {
-          p256dh: String(body.p256dh),
-          auth: String(body.auth),
+          p256dh,
+          auth,
           deviceLabel: body.deviceLabel ?? null,
           isStandalone: Boolean(body.isStandalone),
         },
