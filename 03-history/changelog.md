@@ -28,3 +28,22 @@
 ### Tests
 - Unit test Vitest untuk `ordering` (midpoint/rebalance) dan `reminders` (keempat jenis reminder, quiet hours, timezone) — 16 test, semua lolos (`npm run test`).
 - Unit test `push-delivery` (klasifikasi status 2xx/404/410/429/5xx, backoff 5/20/60, konstanta) — total **22 test**, semua lolos.
+
+
+## [Deploy — 2026-09-19]
+
+### Deployed
+- Produksi live di https://todo.nexigo.my.id (Cloudflare Workers + Neon Postgres).
+- Worker flowboard-web (Next.js via OpenNext) + flowboard-reminder (cron */5) ter-deploy, secrets/vars terpasang.
+- Custom domain todo.nexigo.my.id -> flowboard-web (cert SSL auto, DNS proxied).
+- Migrasi Drizzle dijalankan terhadap branch production (15 tabel + 2 enum + login_attempts).
+- Admin pertama di-seed: admin@flowboard.local (role admin, login terverifikasi).
+
+### Infra fixes
+- .github/workflows/deploy.yml dipindah ke root repo.
+- Neon project id dikoreksi: cold-brook-93438292.
+- neon.ts: protected:true di-drop (Neon free plan HTTP 422).
+- CI node-version 20 -> 22 (wrangler 4.130 butuh Node >=22).
+- Registrasi workers.dev subdomain (sudharmika.workers.dev).
+- DATABASE_URL_UNPOOLED ditambahkan untuk drizzle-kit migrate.
+- Web Worker dapat secret VAPID_PRIVATE_KEY.
