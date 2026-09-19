@@ -23,6 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { api } from "@/lib/api";
 import type { BoardData } from "@/app/(app)/boards/[id]/page";
 import { GanttView } from "./gantt-view";
+import { useHiddenStatuses } from "@/lib/status-visibility";
 import { TaskDetail } from "./task-detail";
 import { ConfirmDialog } from "./confirm-dialog";
 
@@ -194,11 +195,38 @@ export function BoardView({
     });
   }
 
+  // Which columns the user has hidden (persisted viewing preference) — U-hide.
+  const { hiddenStatusIds, isHidden, toggle: toggleStatus, showAll, ready: hiddenReady } = useHiddenStatuses();
+
+  // Everything below renders this: board / list / gantt all respect hidden columns.
+  const visibleData = useMemo<BoardData>(() => {
+    if (!hiddenReady || hiddenStatusIds.length === 0) return data;
+    const statuses = data.statuses.filter((s) => !hiddenStatusIds.includes(s.id));
+    const keep = new Set(statuses.map((s) => s.id));
+    return { ...data, statuses, tasks: data.tasks.filter((t) => keep.has(t.statusId)) };
+  }, [data, hiddenStatusIds, hiddenReady]);
+
+  const header = (
+    <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+      <h1 className="text-xl font-bold truncate">{data.board.name}</h1>
+      <div className="flex items-center gap-2">
+        <ColumnsMenu
+          statuses={data.statuses}
+          isHidden={isHidden}
+          onToggle={toggleStatus}
+          onShowAll={showAll}
+          hiddenCount={hiddenStatusIds.length}
+        />
+        <ViewToggle view={view} setView={setView} />
+      </div>
+    </div>
+  );
+
   if (view === "gantt") {
     return (
       <div className="p-4">
-        <ViewToggle view={view} setView={setView} />
-        <GanttView data={data} onOpenTask={setSelectedTaskId} />
+        {header}
+        <GanttView data={visibleData} onOpenTask={setSelectedTaskId} />
         {selectedTaskId && (
           <TaskDetail data={data} taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
         )}
@@ -209,8 +237,8 @@ export function BoardView({
   if (view === "list") {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <ViewToggle view={view} setView={setView} />
-        <ListView data={data} onOpenTask={setSelectedTaskId} />
+        {header}
+        <ListView data={visibleData} onOpenTask={setSelectedTaskId} />
         {selectedTaskId && (
           <TaskDetail data={data} taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
         )}
@@ -220,10 +248,7 @@ export function BoardView({
 
   return (
     <div className="p-4 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h1 className="text-xl font-bold">{data.board.name}</h1>
-        <ViewToggle view={view} setView={setView} />
-      </div>
+      {header}
 
       <div className="mb-3">
         <input
@@ -242,7 +267,7 @@ export function BoardView({
         onDragEnd={onDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4 flex-1" style={{ alignItems: "flex-start" }}>
-          {data.statuses.map((status, i) => (
+          {visibleData.statuses.map((status, i) => (
             <Column
               key={status.id}
               status={status}
@@ -294,6 +319,121 @@ function ViewToggle({ view, setView }: { view: string; setView: (v: any) => void
 }
 
 const COLUMN_COLORS = ["slate", "indigo", "sky", "emerald", "amber", "rose", "violet"];
+
+/**
+ * "Columns" dropdown — hide/show status columns from the dashboard.
+ * The view preference is per-browser and applies to board, list and gantt.
+ */
+function ColumnsMenu({
+  statuses,
+  isHidden,
+  onToggle,
+  onShowAll,
+  hiddenCount,
+}: {
+  statuses: Status[];
+  isHidden: (id: string) => boolean;
+  onToggle: (id: string) => void;
+  onShowAll: () => void;
+  hiddenCount: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        className="btn btn-ghost text-sm"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Choose which columns appear on the dashboard"
+      >
+        Columns
+        {hiddenCount > 0 && (
+          <span
+            className="px-1.5 rounded-full text-[10px]"
+            style={{ background: "var(--accent)", color: "#fff" }}
+          >
+            {hiddenCount} hidden
+          </span>
+        )}
+        <span style={{ color: "var(--muted)", fontSize: 10 }}>▾</span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 mt-1 rounded-lg py-1 z-50"
+          role="menu"
+          style={{
+            minWidth: 210,
+            background: "var(--card)",
+            border: "1px solid var(--card-border)",
+            boxShadow: "0 8px 24px rgb(0 0 0 / 0.18)",
+          }}
+        >
+          <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+            Show on dashboard
+          </div>
+          {statuses.map((s) => (
+            <label
+              key={s.id}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer"
+              style={{ color: "var(--foreground)" }}
+            >
+              <input
+                type="checkbox"
+                checked={!isHidden(s.id)}
+                onChange={() => onToggle(s.id)}
+                style={{ accentColor: "var(--accent)" }}
+              />
+              <span
+                style={{ width: 8, height: 8, borderRadius: 999, background: `var(--${s.color})`, flexShrink: 0 }}
+              />
+              <span className="truncate flex-1">{s.name}</span>
+              {s.isDone && (
+                <span className="text-[10px]" style={{ color: "var(--muted)" }} title="Tasks here count as completed">
+                  ✓
+                </span>
+              )}
+            </label>
+          ))}
+          {hiddenCount > 0 && (
+            <>
+              <div style={{ borderTop: "1px solid var(--card-border)", margin: "4px 0" }} />
+              <button
+                className="w-full text-left px-3 py-1.5 text-sm"
+                style={{ color: "var(--accent)" }}
+                onClick={() => {
+                  onShowAll();
+                  setOpen(false);
+                }}
+              >
+                Show all columns
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Column({
   status,

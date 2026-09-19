@@ -30,6 +30,10 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 12px rgb(0 0 0 / 0.08);
+  /* Gantt-specific tokens (used by gantt-view.tsx) */
+  --gantt-line: #eef0f4;
+  --gantt-weekend: #f4f6fa;
+  --card-hover-bg: #f8fafc;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,6 +43,9 @@
     --card: #161a22;
     --card-border: #262c38;
     --muted: #9ca3af;
+    --gantt-line: #21262f;
+    --gantt-weekend: #12161d;
+    --card-hover-bg: #1b212b;
   }
 }
 
