@@ -25,6 +25,7 @@ export default function AdminUsersPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState("user");
   const [generated, setGenerated] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users", q, role, status, page],
@@ -70,6 +71,24 @@ export default function AdminUsersPage() {
 
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / 25));
 
+  async function copyGenerated() {
+    if (!generated) return;
+    try {
+      await navigator.clipboard.writeText(generated);
+    } catch {
+      // Fallback for browsers that block the async Clipboard API without
+      // a secure context or user activation.
+      const ta = document.createElement("textarea");
+      ta.value = generated;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -81,7 +100,9 @@ export default function AdminUsersPage() {
         <div className="card p-4 mb-4" style={{ borderColor: "var(--success)" }}>
           <div className="text-sm font-medium mb-1">Temporary password (shown once)</div>
           <code className="text-lg font-mono">{generated}</code>
-          <button className="btn btn-ghost text-xs ml-2" onClick={() => navigator.clipboard.writeText(generated)}>Copy</button>
+          <button className="btn btn-ghost text-xs ml-2" onClick={copyGenerated}>
+            {copied ? "✓ Copied" : "Copy"}
+          </button>
         </div>
       )}
 
