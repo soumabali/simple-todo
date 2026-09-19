@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added (Gantt view + kontrol kolom)
+- **Gantt view** (tab ketiga di board, `/boards/:id?view=gantt`): timeline bulan+harian, shading weekend, bar berwarna per status, milestone (diamond), progress fill, drag-to-move + drag-edge-to-resize, tooltip hover, tray *unscheduled*, dan grup per status yang bisa dilipat.
+- **Today-centring**: hari ini selalu berada di tengah viewport; otomatis re-center saat preset (`1M/3M/6M/1Y/All`), zoom, atau tombol `◎ Today` berubah, dan tetap stabil saat ukuran jendela berubah. Kolom hari ini diberi tint + pill + marker gradien agar langsung tertangkap mata.
+- **Sort timeline**: `Nearest to today` / `Start date` / `Priority`; toggle `Show completed` dengan lencana jumlah task tersembunyi.
+- **Sembunyikan kolom status** (`src/lib/status-visibility.ts`): dropdown `Columns` di header board untuk show/hide kolom status; preferensi per-browser (localStorage) dan diterapkan konsisten di view **board, list, dan gantt**.
+
+### Fixed
+- Label `done` palsu pada header kolom Done (kini ikon `✓` dengan tooltip).
+- Comparator sort menghasilkan `NaN` untuk task tanpa tanggal.
+- Tinggi kontainer baris Gantt diperbaiki agar marker "today" membentang penuh di seluruh grid.
+
 ### Added (UI/UX — Fase 2)
 - **U1 — Label UI**: task detail kini punya picker label (toggle chip) + form buat label baru (auto-attach), dan kartu task menampilkan chip label. Endpoint baru `GET/POST/DELETE /api/tasks/:id/labels` (validasi label satu board, idempoten).
 - **U2 — Feedback autosave**: drawer task menampilkan "Saving… / Saved ✓ / Save failed" (aria-live) untuk setiap perubahan.
