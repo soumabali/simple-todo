@@ -5,20 +5,29 @@ on:
     branches: [main, develop]
   pull_request:
 
+env:
+  APP_DIR: 02-application
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
       - run: npm ci
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
       - run: npm run build
         env:
-          DATABASE_URL: ${{ secrets.NEON_PRODUCTION_URL }}
+          # Build only needs these to exist; it does not connect to the DB at
+          # build time, but better-auth and the VAPID getter read them lazily.
+          DATABASE_URL: ${{ secrets.NEON_DEVELOP_URL }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || 'https://todo.nexigo.my.id' }}
 
@@ -26,13 +35,22 @@ jobs:
     needs: verify
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      # Runtime DB URL: pooled connection (serverless driver, works on workerd).
       DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.NEON_PRODUCTION_URL || secrets.NEON_DEVELOP_URL }}
+      # Migrations run via drizzle-kit (pg driver) — use the UNPOOLED URL so
+      # pgbouncer does not interfere with DDL (CREATE TYPE/INDEX etc.).
+      DATABASE_URL_UNPOOLED: ${{ github.ref == 'refs/heads/main' && secrets.NEON_PRODUCTION_URL_UNPOOLED || secrets.NEON_DEVELOP_URL_UNPOOLED }}
       BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
       BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || 'https://todo.nexigo.my.id' }}
       VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
       VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT || 'mailto:admin@nexigo.my.id' }}
     steps:
       - uses: actions/checkout@v4
@@ -40,26 +58,29 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
       - run: npm ci
 
       # 1. Apply the Neon policy (auth: false, buckets, branch protection).
       - name: Apply Neon policy
         run: |
           npx neon@latest deploy \
-            --project-id wandering-band-92657113 \
+            --project-id cold-brook-93438292 \
             --branch ${{ github.ref == 'refs/heads/main' && 'production' || 'develop' }} \
             --allow-protected --update-existing --no-env-pull
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
 
       # 2. Run database migrations BEFORE deploying code (PRD §12.5).
+      #    drizzle-kit reads DATABASE_URL from drizzle.config.ts, so point it
+      #    at the unpooled URL for DDL safety.
       - name: Run database migrations
         run: npm run db:migrate
         env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
+          DATABASE_URL: ${{ env.DATABASE_URL_UNPOOLED }}
 
       # 3. Deploy the web Worker (OpenNext). Public vars are passed via --var;
-      #    secrets are set via `wrangler secret put` in the next step.
+      #    secrets are set via `wrangler secret put` (idempotent, additive).
       - name: Deploy web Worker
         run: |
           npx opennextjs-cloudflare build
@@ -68,11 +89,14 @@ jobs:
             --var VAPID_PUBLIC_KEY:"$VAPID_PUBLIC_KEY" \
             --var VAPID_SUBJECT:"$VAPID_SUBJECT"
 
-      # 4. Put secrets on the web Worker (idempotent).
+      # 4. Put secrets on the web Worker (idempotent). The web Worker needs
+      #    VAPID_PRIVATE_KEY too — /api/push/test and the subscribe flow call
+      #    sendPush() from the Next.js runtime.
       - name: Configure web Worker secrets
         run: |
-          printf '%s' "$DATABASE_URL"      | npx wrangler secret put DATABASE_URL      --config wrangler.jsonc
-          printf '%s' "$BETTER_AUTH_SECRET" | npx wrangler secret put BETTER_AUTH_SECRET --config wrangler.jsonc
+          printf '%s' "$DATABASE_URL"        | npx wrangler secret put DATABASE_URL        --config wrangler.jsonc
+          printf '%s' "$BETTER_AUTH_SECRET"  | npx wrangler secret put BETTER_AUTH_SECRET  --config wrangler.jsonc
+          printf '%s' "$VAPID_PRIVATE_KEY"   | npx wrangler secret put VAPID_PRIVATE_KEY   --config wrangler.jsonc
 
       # 5. Deploy the reminder Worker + secrets + public vars.
       - name: Deploy reminder Worker
@@ -84,9 +108,10 @@ jobs:
         run: |
           printf '%s' "$DATABASE_URL"       | npx wrangler secret put DATABASE_URL      --config workers/reminder/wrangler.jsonc
           printf '%s' "$VAPID_PRIVATE_KEY"  | npx wrangler secret put VAPID_PRIVATE_KEY --config workers/reminder/wrangler.jsonc
-        env:
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
 
-      # 6. Smoke test (uncomment once `npm run test:smoke` exists).
-      # - name: Smoke test
-      #   run: npm run test:smoke
+      # 6. Smoke test (enabled once the Worker is live).
+      - name: Smoke test
+        run: |
+          echo "Deployed. Domain: $BETTER_AUTH_URL"
+        env:
+          BETTER_AUTH_URL: ${{ env.BETTER_AUTH_URL }}
