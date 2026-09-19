@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **BUG-6 (P0):** blank white page in real browsers. CSP `script-src 'self'` blocked Next.js App Router's inline RSC bootstrap scripts, so React never hydrated. Added `'unsafe-inline'` to `script-src` (nonce-based CSP is the proper follow-up). Verified: login form renders and full login flow works in a real browser.
 - **BUG-1 (P0):** middleware now accepts both `__Secure-better-auth.session_token` (HTTPS) and `better-auth.session_token` (HTTP dev). Previously every authenticated route 307-redirected back to `/login` in production because better-auth prefixes the cookie with `__Secure-` over HTTPS.
 - **BUG-2 (P1):** `lastLoginAt` now populates on login via `databaseHooks.session.create.after`.
 - **BUG-3 (P1):** `VAPID_SUBJECT` fallback corrected to `mailto:admin@nexigo.my.id`.
