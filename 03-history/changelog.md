@@ -6,6 +6,7 @@
 - **BUG-1 (P0):** middleware now accepts both `__Secure-better-auth.session_token` (HTTPS) and `better-auth.session_token` (HTTP dev). Previously every authenticated route 307-redirected back to `/login` in production because better-auth prefixes the cookie with `__Secure-` over HTTPS.
 - **BUG-2 (P1):** `lastLoginAt` now populates on login via `databaseHooks.session.create.after`.
 - **BUG-3 (P1):** `VAPID_SUBJECT` fallback corrected to `mailto:admin@nexigo.my.id`.
+- **P2 hardening:** `/api/push/subscribe` now validates `p256dh`/`auth` are unpadded base64url before storing, so the reminder worker never signs/encrypts against a malformed key.
 
 ### Added
 - Implementasi penuh FlowBoard (PRD v1.2): Next.js 15 App Router + better-auth (self-hosted), Drizzle ORM, Postgres.
