@@ -26,9 +26,14 @@ export default defineConfig({
   },
 
   // Per-branch policy (§2.7.5).
+  // NOTE: `protected: true` on the default branch is deliberately NOT set.
+  // The Neon free/launch plan caps the number of protected branches (it
+  // rejected `protected: true` with HTTP 422 "maximum number of protected
+  // branches"), and protection is a safety nicety, not a launch requirement.
+  // Re-enable it when the plan allows.
   branch: (branch) => {
     if (branch.isDefault) {
-      return { protected: true }; // production cannot be applied to casually
+      return { protected: false };
     }
     return { parent: "production", ttl: "7d" }; // preview branches auto-expire
   },
