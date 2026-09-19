@@ -92,6 +92,26 @@ Commit `845037f`, ter-deploy ke `https://todo.nexigo.my.id`. Sisa item UI/UX (Fa
 
 ---
 
+## 3b. Fase 2 — UI/UX (SUDAH DIKERJAKAN & ter-deploy)
+
+Commit `b480c2b` / `2a7e852`. Diverifikasi di browser produksi (0 JS error) + API.
+
+| Item | Status | Bukti |
+|---|---|---|
+| U1 Label UI + endpoint `/api/tasks/:id/labels` | ✅ | buat label dari drawer → auto-attach → chip muncul di kartu; cross-board label → 400; idempoten |
+| U2 Feedback autosave (Saving/Saved/Failed) | ✅ | terpasang di drawer, aria-live |
+| U3 Menu board (edit/arsip/hapus + konfirmasi ketik nama) | ✅ | edit nama live terverifikasi di browser |
+| U4 Menu kolom (rename/warna/geser/hapus) | ✅ | rename "To Do"→"Backlog" live di browser |
+| U5 Empty state kolom | ✅ | "Drop tasks here" / "No matching tasks" |
+| U6 Shortcut `/` fokus search | ✅ | terpasang |
+| U7 Palet warna lengkap | ✅ | `--sky/--violet/--slate` terverifikasi ada di bundle CSS produksi |
+| U10 ConfirmDialog menggantikan `confirm()` | ✅ | dipakai di hapus task/board/kolom |
+
+**Sisa (Fase 3, opsional):** U8 (halaman profil: ganti nama/timezone), U9 (indikator loading notifikasi — tercakup via BUG-8).
+
+---
+
+
 ## 4. UI/UX improvement (mempermudah pengguna)
 
 Ini bukan bug (fitur jalan), tapi peluang untuk membuat aplikasi lebih mudah & nyaman dipakai:
