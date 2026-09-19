@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import type { BoardData } from "@/app/(app)/boards/[id]/page";
 import { GanttView } from "./gantt-view";
 import { TaskDetail } from "./task-detail";
+import { ConfirmDialog } from "./confirm-dialog";
 
 type Status = BoardData["statuses"][number];
 type Task = BoardData["tasks"][number];
@@ -59,6 +60,21 @@ export function BoardView({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [search, setSearch] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" focuses the search input (matches the placeholder hint) — U6.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const typing = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -71,6 +87,25 @@ export function BoardView({
       api(`/api/tasks/${v.id}/move`, { method: "PATCH", body: JSON.stringify(v) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["board", data.board.id] }),
   });
+
+  // Reorder a column by swapping its position with its neighbour (U4).
+  const moveColumnMutation = useMutation({
+    mutationFn: async ({ id, newPosition }: { id: string; newPosition: number }) =>
+      api(`/api/statuses/${id}/move`, { method: "PATCH", body: JSON.stringify({ position: newPosition }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["board", data.board.id] }),
+  });
+
+  function moveColumn(statusId: string, dir: -1 | 1) {
+    const ordered = [...data.statuses].sort((a, b) => Number(a.position) - Number(b.position));
+    const i = ordered.findIndex((s) => s.id === statusId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= ordered.length) return;
+    // Swap the two positions.
+    const a = ordered[i];
+    const b = ordered[j];
+    moveColumnMutation.mutate({ id: a.id, newPosition: Number(b.position) });
+    moveColumnMutation.mutate({ id: b.id, newPosition: Number(a.position) });
+  }
 
   const tasksByStatus = useMemo(() => {
     const map: Record<string, Task[]> = {};
@@ -95,6 +130,18 @@ export function BoardView({
     }
     return out;
   }, [tasksByStatus, search, data.statuses]);
+
+  // taskId → its labels, so cards can render label chips (U1).
+  const labelsByTask = useMemo(() => {
+    const byId = new Map(data.labels.map((l) => [l.id, l]));
+    const map: Record<string, { id: string; name: string; color: string }[]> = {};
+    for (const tl of data.taskLabels) {
+      const label = byId.get(tl.labelId);
+      if (!label) continue;
+      (map[tl.taskId] ??= []).push(label);
+    }
+    return map;
+  }, [data.labels, data.taskLabels]);
 
   function onDragStart(e: DragStartEvent) {
     const task = data.tasks.find((t) => t.id === e.active.id);
@@ -180,6 +227,7 @@ export function BoardView({
 
       <div className="mb-3">
         <input
+          ref={searchRef}
           className="input"
           placeholder="Search tasks…  (/ to focus)"
           value={search}
@@ -194,13 +242,18 @@ export function BoardView({
         onDragEnd={onDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4 flex-1" style={{ alignItems: "flex-start" }}>
-          {data.statuses.map((status) => (
+          {data.statuses.map((status, i) => (
             <Column
               key={status.id}
               status={status}
               tasks={filtered[status.id] ?? []}
               boardId={data.board.id}
+              searchActive={search.trim().length > 0}
+              labelsByTask={labelsByTask}
               onOpenTask={setSelectedTaskId}
+              canMoveLeft={i > 0}
+              canMoveRight={i < data.statuses.length - 1}
+              onMove={(dir) => moveColumn(status.id, dir)}
             />
           ))}
           <AddColumn boardId={data.board.id} />
@@ -240,11 +293,39 @@ function ViewToggle({ view, setView }: { view: string; setView: (v: any) => void
   );
 }
 
-function Column({ status, tasks, boardId, onOpenTask }: { status: Status; tasks: Task[]; boardId: string; onOpenTask: (id: string) => void }) {
+const COLUMN_COLORS = ["slate", "indigo", "sky", "emerald", "amber", "rose", "violet"];
+
+function Column({
+  status,
+  tasks,
+  boardId,
+  searchActive,
+  labelsByTask,
+  onOpenTask,
+  canMoveLeft,
+  canMoveRight,
+  onMove,
+}: {
+  status: Status;
+  tasks: Task[];
+  boardId: string;
+  searchActive: boolean;
+  labelsByTask: Record<string, { id: string; name: string; color: string }[]>;
+  onOpenTask: (id: string) => void;
+  canMoveLeft: boolean;
+  canMoveRight: boolean;
+  onMove: (dir: -1 | 1) => void;
+}) {
   const { setNodeRef } = useSortable({ id: status.id });
   const qc = useQueryClient();
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [editName, setEditName] = useState(status.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["board", boardId] });
 
   const createTask = useMutation({
     mutationFn: (title: string) =>
@@ -253,28 +334,144 @@ function Column({ status, tasks, boardId, onOpenTask }: { status: Status; tasks:
         body: JSON.stringify({ title, statusId: status.id }),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["board", boardId] });
+      invalidate();
       setNewTitle("");
     },
   });
 
-  const accent = status.color === "emerald" ? "var(--success)" : status.color === "amber" ? "var(--warning)" : status.color === "rose" ? "var(--danger)" : "var(--accent)";
+  const renameColumn = useMutation({
+    mutationFn: (name: string) =>
+      api(`/api/statuses/${status.id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+    onSuccess: () => {
+      invalidate();
+      setRenaming(false);
+    },
+  });
+
+  const recolor = useMutation({
+    mutationFn: (color: string) =>
+      api(`/api/statuses/${status.id}`, { method: "PATCH", body: JSON.stringify({ color }) }),
+    onSuccess: () => {
+      invalidate();
+      setMenuOpen(false);
+    },
+  });
+
+  const removeColumn = useMutation({
+    mutationFn: () => api(`/api/statuses/${status.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      invalidate();
+      setConfirmDelete(false);
+    },
+  });
+
+  const accent = `var(--${status.color})`;
+  const empty = tasks.length === 0;
 
   return (
     <div ref={setNodeRef} className="flex flex-col shrink-0 w-72 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
       <div style={{ height: 3, background: accent, borderRadius: "8px 8px 0 0" }} />
-      <div className="flex items-center justify-between px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{status.name}</span>
-          <span className="text-xs" style={{ color: "var(--muted)" }}>{tasks.length}</span>
+      <div className="flex items-center justify-between px-3 py-2 gap-1">
+        {renaming ? (
+          <form
+            className="flex-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (editName.trim()) renameColumn.mutate(editName.trim());
+            }}
+          >
+            <input
+              className="input text-sm"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => e.key === "Escape" && setRenaming(false)}
+            />
+          </form>
+        ) : (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-medium text-sm truncate">{status.name}</span>
+            <span className="text-xs shrink-0" style={{ color: "var(--muted)" }}>{tasks.length}</span>
+            {status.isDone && <span className="chip chip-emerald shrink-0">Done</span>}
+          </div>
+        )}
+
+        <div className="relative shrink-0">
+          <button
+            className="btn btn-ghost text-xs px-2 py-1"
+            aria-label="Column options"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 mt-1 z-20 card p-1 w-44 text-sm" style={{ boxShadow: "var(--shadow-card)" }}>
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded hover:bg-black/5 disabled:opacity-40"
+                  disabled={!canMoveLeft}
+                  onClick={() => { onMove(-1); setMenuOpen(false); }}
+                >
+                  ← Move left
+                </button>
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded hover:bg-black/5 disabled:opacity-40"
+                  disabled={!canMoveRight}
+                  onClick={() => { onMove(1); setMenuOpen(false); }}
+                >
+                  → Move right
+                </button>
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded hover:bg-black/5"
+                  onClick={() => { setEditName(status.name); setRenaming(true); setMenuOpen(false); }}
+                >
+                  Rename
+                </button>
+                <div className="px-3 py-1.5">
+                  <div className="text-xs mb-1" style={{ color: "var(--muted)" }}>Color</div>
+                  <div className="flex gap-1">
+                    {COLUMN_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        aria-label={`Color ${c}`}
+                        className="w-4 h-4 rounded-full"
+                        style={{
+                          background: `var(--${c})`,
+                          outline: status.color === c ? "2px solid var(--accent)" : "none",
+                          outlineOffset: 1,
+                        }}
+                        onClick={() => recolor.mutate(c)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <button
+                  className="w-full text-left px-3 py-1.5 rounded hover:bg-black/5"
+                  style={{ color: "var(--danger)" }}
+                  onClick={() => { setConfirmDelete(true); setMenuOpen(false); }}
+                >
+                  Delete column
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <div className="flex flex-col gap-2 px-2 pb-2 min-h-[40px]">
           {tasks.map((task) => (
-            <SortableTask key={task.id} task={task} onOpenTask={onOpenTask} />
+            <SortableTask key={task.id} task={task} labels={labelsByTask[task.id] ?? []} onOpenTask={onOpenTask} />
           ))}
+          {empty && (
+            <div
+              className="text-xs text-center py-4 rounded-lg"
+              style={{ color: "var(--muted)", border: "1px dashed var(--card-border)" }}
+            >
+              {searchActive ? "No matching tasks" : "Drop tasks here"}
+            </div>
+          )}
         </div>
       </SortableContext>
 
@@ -307,11 +504,32 @@ function Column({ status, tasks, boardId, onOpenTask }: { status: Status; tasks:
           </button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete column "${status.name}"?`}
+        message={
+          tasks.length > 0
+            ? `This column holds ${tasks.length} task(s). Delete it only if it's empty — move tasks out first.`
+            : "This cannot be undone."
+        }
+        confirmLabel="Delete column"
+        danger
+        busy={removeColumn.isPending}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => removeColumn.mutate()}
+      >
+        {removeColumn.isError && (
+          <div className="text-sm" style={{ color: "var(--danger)" }}>
+            {(removeColumn.error as Error)?.message ?? "Could not delete the column."}
+          </div>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }
 
-function SortableTask({ task, onOpenTask }: { task: Task; onOpenTask: (id: string) => void }) {
+function SortableTask({ task, labels, onOpenTask }: { task: Task; labels: { id: string; name: string; color: string }[]; onOpenTask: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -320,16 +538,29 @@ function SortableTask({ task, onOpenTask }: { task: Task; onOpenTask: (id: strin
   };
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={() => onOpenTask(task.id)} className="card card-hover p-3 cursor-grab">
-      <TaskCardInner task={task} />
+      <TaskCardInner task={task} labels={labels} />
     </div>
   );
 }
 
-function TaskCardInner({ task }: { task: Task }) {
+function TaskCardInner({ task, labels = [] }: { task: Task; labels?: { id: string; name: string; color: string }[] }) {
   const chip = dateChip(task);
   return (
     <div>
       <div className="text-sm font-medium mb-1">{task.title}</div>
+      {labels.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap mb-1">
+          {labels.map((l) => (
+            <span
+              key={l.id}
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{ background: `var(--${l.color})`, color: "#fff" }}
+            >
+              {l.name}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         {chip && <span className={`chip ${chip.cls}`}>{chip.label}</span>}
         {task.priority === 1 && <span className="chip chip-rose">Urgent</span>}

@@ -79,7 +79,20 @@
 
 ---
 
-## 3. UI/UX improvement (mempermudah pengguna)
+## 3. Status perbaikan (diperbarui 2026-09-19 setelah deploy)
+
+| Bug | Status | Verifikasi produksi |
+|---|---|---|
+| BUG-8 (P1) mark-all-read 404 | ✅ **FIXED** | `POST /api/notifications {all:true}` → 200 `{"ok":true}` |
+| BUG-9 (P1) progress tidak reset | ✅ **FIXED** | move→Done `progress=100`; move keluar `progress=0` |
+| BUG-10 (P2) duplikat label 500 | ✅ **FIXED** | duplikat → 400 "Label already exists" |
+| BUG-11 (P2) public-key diblokir | ✅ **FIXED** | `GET /api/push/public-key` anon → 200 (len 87) |
+
+Commit `845037f`, ter-deploy ke `https://todo.nexigo.my.id`. Sisa item UI/UX (Fase 2 & 3) belum dikerjakan.
+
+---
+
+## 4. UI/UX improvement (mempermudah pengguna)
 
 Ini bukan bug (fitur jalan), tapi peluang untuk membuat aplikasi lebih mudah & nyaman dipakai:
 

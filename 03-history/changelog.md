@@ -2,7 +2,17 @@
 
 ## [Unreleased]
 
+### Added (UI/UX — Fase 2)
+- **U1 — Label UI**: task detail kini punya picker label (toggle chip) + form buat label baru (auto-attach), dan kartu task menampilkan chip label. Endpoint baru `GET/POST/DELETE /api/tasks/:id/labels` (validasi label satu board, idempoten).
+- **U2 — Feedback autosave**: drawer task menampilkan "Saving… / Saved ✓ / Save failed" (aria-live) untuk setiap perubahan.
+- **U3 — Kelola board**: menu aksi di kartu board (edit nama/deskripsi/warna, arsipkan/unarsipkan, hapus dengan konfirmasi ketik nama).
+- **U4 — Kelola kolom**: menu header kolom (rename, ganti warna, geser kiri/kanan, hapus dengan konfirmasi).
+- **U5 — Empty state kolom**: petunjuk "Drop tasks here" / "No matching tasks".
+- **U6 — Shortcut `/`** memfokuskan input pencarian (sesuai placeholder).
+- **U10 — ConfirmDialog** komponen modal yang dapat dipakai ulang; menggantikan `confirm()` native pada hapus task dan dipakai untuk hapus board/kolom.
+
 ### Fixed
+- **U7 — Warna lengkap**: `globals.css` kini mendefinisikan `--indigo/--emerald/--amber/--rose/--sky/--violet/--slate`; mapping warna board/kolom tidak lagi jatuh ke indigo.
 - **BUG-8 (P1):** "Mark all as read" di Notifications selalu gagal 404 — frontend memanggil `/api/notifications/read` (tidak ada), backend mendefinisikan read di `POST /api/notifications`. Diperbaiki dengan mengarahkan `markAll` ke `/api/notifications`.
 - **BUG-9 (P1):** progress task tidak di-reset saat dipindah keluar kolom "Done" (tetap 100% padahal `completedAt` sudah null). Diperbaiki di `moveTask()` — keluar dari Done kini `progress=0` (bila ada subtask, `recomputeProgressFromSubtasks` menimpanya dengan rasio benar).
 - **BUG-10 (P2):** duplikat label memicu 500 (unique constraint) — kini di-precheck dan mengembalikan 400 "Label already exists", dengan fallback `23505` race-safe.

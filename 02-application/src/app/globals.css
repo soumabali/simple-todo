@@ -17,6 +17,15 @@
   --success: #10b981; /* emerald */
   --warning: #f59e0b; /* amber */
   --danger: #f43f5e; /* rose */
+  /* Full palette — maps the color names offered in the UI (board + column
+     colors) to concrete values so no choice falls back to indigo (U7). */
+  --indigo: #6366f1;
+  --emerald: #10b981;
+  --amber: #f59e0b;
+  --rose: #f43f5e;
+  --sky: #0ea5e9;
+  --violet: #8b5cf6;
+  --slate: #64748b;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
