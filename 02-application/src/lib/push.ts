@@ -23,7 +23,7 @@ export type PushSubscriptionShape = {
 export function getVapidKeys(): { publicKey: string; privateKey: string; subject: string } {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT ?? "mailto:admin@example.com";
+  const subject = process.env.VAPID_SUBJECT ?? "mailto:admin@nexigo.my.id";
 
   if (!publicKey || !privateKey) {
     // Not configured yet — surface a clear error, never a fake key.

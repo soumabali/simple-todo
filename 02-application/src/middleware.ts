@@ -9,7 +9,13 @@ import { NextResponse, NextRequest } from "next/server";
  * on the Node runtime and can call auth.api.getSession().
  */
 
-const SESSION_COOKIE = "better-auth.session_token";
+// better-auth prefixes the cookie with `__Secure-` when served over HTTPS.
+// Local dev (HTTP) uses the un-prefixed name, production (HTTPS) uses the
+// prefixed one. Check both so sessions work in every environment.
+const SESSION_COOKIES = [
+  "__Secure-better-auth.session_token",
+  "better-auth.session_token",
+];
 
 const PUBLIC_PATHS = ["/login", "/api/auth"];
 
@@ -33,7 +39,7 @@ export default function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasSession = req.cookies.has(SESSION_COOKIE);
+  const hasSession = SESSION_COOKIES.some((name) => req.cookies.has(name));
 
   if (!hasSession) {
     const url = req.nextUrl.clone();

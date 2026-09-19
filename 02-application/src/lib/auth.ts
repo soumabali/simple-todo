@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import * as schema from "@/db/schema";
 
@@ -68,6 +69,15 @@ export const auth = betterAuth({
             throw new Error("ACCOUNT_DEACTIVATED");
           }
           return { data: session };
+        },
+        after: async (session) => {
+          // Record the last login time (PRD §6.3 / admin "last login" column).
+          const db = getDb();
+          await db
+            .update(schema.user)
+            .set({ lastLoginAt: new Date() })
+            .where(eq(schema.user.id, session.userId))
+            .catch(() => {});
         },
       },
     },
