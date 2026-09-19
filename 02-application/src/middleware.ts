@@ -17,7 +17,7 @@ const SESSION_COOKIES = [
   "better-auth.session_token",
 ];
 
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/push/public-key"];
 
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

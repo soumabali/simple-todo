@@ -279,7 +279,10 @@ export async function moveTask(
     patch.completedAt = new Date();
   } else if (!isDone && task.completedAt) {
     patch.completedAt = null;
-    // progress recomputed if there are subtasks, else keep as-is (or reset to a sane value)
+    // Reset progress when leaving "Done". If the task has subtasks,
+    // recomputeProgressFromSubtasks() below overwrites this with the real
+    // ratio; otherwise the task should go back to "not started" (BUG-9).
+    patch.progress = 0;
   }
 
   // If the midpoint gap is too small, rebalance the target column (PRD §6.2).

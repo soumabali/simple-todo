@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- **BUG-8 (P1):** "Mark all as read" di Notifications selalu gagal 404 — frontend memanggil `/api/notifications/read` (tidak ada), backend mendefinisikan read di `POST /api/notifications`. Diperbaiki dengan mengarahkan `markAll` ke `/api/notifications`.
+- **BUG-9 (P1):** progress task tidak di-reset saat dipindah keluar kolom "Done" (tetap 100% padahal `completedAt` sudah null). Diperbaiki di `moveTask()` — keluar dari Done kini `progress=0` (bila ada subtask, `recomputeProgressFromSubtasks` menimpanya dengan rasio benar).
+- **BUG-10 (P2):** duplikat label memicu 500 (unique constraint) — kini di-precheck dan mengembalikan 400 "Label already exists", dengan fallback `23505` race-safe.
+- **BUG-11 (P2):** `/api/push/public-key` (endpoint publik) diblokir middleware untuk anon — ditambahkan ke `PUBLIC_PATHS`.
+
 - **BUG-7 (P0):** change-password stuck in a redirect loop. Two causes: (1) `mustChangePassword` was never cleared after a self-service change — fixed with an `account.update.after` hook (clears only when `context != null`); (2) the session `cookieCache` kept the stale `mustChangePassword=true` in a cookie for up to 5 min — fixed by disabling `cookieCache`. Also added a "✓ Password updated" success state and friendlier error copy. Verified end-to-end: login → change → flag clears immediately → `/boards` returns 200 (no loop) → login with new password works.
 - **BUG-6 (P0):** blank white page in real browsers. CSP `script-src 'self'` blocked Next.js App Router's inline RSC bootstrap scripts, so React never hydrated. Added `'unsafe-inline'` to `script-src` (nonce-based CSP is the proper follow-up). Verified: login form renders and full login flow works in a real browser.
 - **BUG-1 (P0):** middleware now accepts both `__Secure-better-auth.session_token` (HTTPS) and `better-auth.session_token` (HTTP dev). Previously every authenticated route 307-redirected back to `/login` in production because better-auth prefixes the cookie with `__Secure-` over HTTPS.

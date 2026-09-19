@@ -21,7 +21,7 @@ export default function NotificationsPage() {
   });
 
   const markAll = useMutation({
-    mutationFn: () => api("/api/notifications/read", { method: "POST", body: JSON.stringify({ all: true }) }),
+    mutationFn: () => api("/api/notifications", { method: "POST", body: JSON.stringify({ all: true }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
