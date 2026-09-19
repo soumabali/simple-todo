@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
-- **BUG-7 (P0):** change-password stuck in a redirect loop. The `mustChangePassword` flag was never cleared after a self-service password change, so the forced-change layout kept redirecting the user back to `/change-password`. Added `account.update.after` hook (clears the flag only when `context != null`, i.e. self-service; admin resets keep it) plus a "✓ Password updated" success state and friendlier error copy.
+- **BUG-7 (P0):** change-password stuck in a redirect loop. Two causes: (1) `mustChangePassword` was never cleared after a self-service change — fixed with an `account.update.after` hook (clears only when `context != null`); (2) the session `cookieCache` kept the stale `mustChangePassword=true` in a cookie for up to 5 min — fixed by disabling `cookieCache`. Also added a "✓ Password updated" success state and friendlier error copy. Verified end-to-end: login → change → flag clears immediately → `/boards` returns 200 (no loop) → login with new password works.
 - **BUG-6 (P0):** blank white page in real browsers. CSP `script-src 'self'` blocked Next.js App Router's inline RSC bootstrap scripts, so React never hydrated. Added `'unsafe-inline'` to `script-src` (nonce-based CSP is the proper follow-up). Verified: login form renders and full login flow works in a real browser.
 - **BUG-1 (P0):** middleware now accepts both `__Secure-better-auth.session_token` (HTTPS) and `better-auth.session_token` (HTTP dev). Previously every authenticated route 307-redirected back to `/login` in production because better-auth prefixes the cookie with `__Secure-` over HTTPS.
 - **BUG-2 (P1):** `lastLoginAt` now populates on login via `databaseHooks.session.create.after`.
