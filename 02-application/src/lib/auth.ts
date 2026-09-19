@@ -81,6 +81,26 @@ export const auth = betterAuth({
         },
       },
     },
+    account: {
+      update: {
+        after: async (account: any, context: any) => {
+          // Clear mustChangePassword after a SELF-SERVICE password change so
+          // the forced-change redirect loop stops (BUG-7).
+          // `context` is null for admin-initiated resets (our route handler
+          // calls internalAdapter.updatePassword directly, outside a
+          // better-auth endpoint) — in that case we keep the flag set.
+          if (!context) return;
+          const userId = account?.userId;
+          if (!userId) return;
+          const db = getDb();
+          await db
+            .update(schema.user)
+            .set({ mustChangePassword: false })
+            .where(eq(schema.user.id, userId))
+            .catch(() => {});
+        },
+      },
+    },
   },
 });
 

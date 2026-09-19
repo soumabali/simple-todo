@@ -10,11 +10,13 @@ export default function ChangePasswordPage() {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setSuccess(false);
 
     // At least 8 chars incl. a letter and a digit (PRD F-1.2).
     if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(next)) {
@@ -34,11 +36,24 @@ export default function ChangePasswordPage() {
         revokeOtherSessions: true,
       });
       if (res.error) {
-        setError(res.error.message ?? "Could not change password");
+        // Friendlier copy for the most common failure.
+        const msg = res.error.message ?? "";
+        setError(
+          /invalid|incorrect|password/i.test(msg)
+            ? "Current password is incorrect"
+            : msg || "Could not change password"
+        );
         return;
       }
-      router.push("/boards");
-      router.refresh();
+      setSuccess(true);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      // Give the user a moment to see the confirmation before navigating.
+      window.setTimeout(() => {
+        router.push("/boards");
+        router.refresh();
+      }, 1200);
     } catch {
       setError("Could not change password");
     } finally {
@@ -64,6 +79,11 @@ export default function ChangePasswordPage() {
             <input id="confirm" type="password" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
           </div>
           {error && <div className="text-sm" style={{ color: "var(--danger)" }}>{error}</div>}
+          {success && (
+            <div className="text-sm" role="status" style={{ color: "var(--success)" }}>
+              ✓ Password updated — redirecting…
+            </div>
+          )}
           <button type="submit" className="btn btn-primary w-full justify-center" disabled={loading}>
             {loading ? "Saving…" : "Update password"}
           </button>
