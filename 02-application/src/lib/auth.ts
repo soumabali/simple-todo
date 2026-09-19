@@ -38,7 +38,11 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // rolling: refresh if older than 1 day
     cookieCache: {
-      enabled: true,
+      // Disabled: the cache stores the user object (incl. mustChangePassword)
+      // in a cookie for up to 5 minutes, so after a password change the stale
+      // "true" keeps redirecting the user to /change-password (BUG-7).
+      // The DB read is cheap and the 5-min reminder cron keeps Neon warm.
+      enabled: false,
       maxAge: 60 * 5,
     },
   },
