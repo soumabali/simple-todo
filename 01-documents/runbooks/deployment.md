@@ -12,8 +12,15 @@ Push ke `main` → GitHub Actions (`.github/workflows/deploy.yml`) menjalankan:
 2. **migrate** — `drizzle-kit migrate` ke database Neon
 3. **deploy** — `opennextjs-cloudflare build` + `wrangler deploy` ke Cloudflare
 
-Bila salah satu tahap gagal, tahap berikutnya tidak berjalan dan versi lama
-tetap melayani trafik.
+Bila salah satu tahap gagal, tahap berikutnya tidak berjalan. **Baca urutan
+step-nya lebih dulu sebelum membaca pesan error** — step pertama yang merah
+adalah satu-satunya yang informasinya nyata, sisanya `skipped` dan tidak
+mengungkap apa pun. Perhatikan juga bahwa `migrate` berjalan **sebelum**
+`deploy`: bila deploy gagal setelah migrasi sukses, skema database sudah
+berubah sementara kode aplikasinya belum — keadaan setengah jalan yang perlu
+ditangani, bukan sekadar "deploy gagal".
+
+Insiden nyata dan penyebabnya: `03-history/deployment-logs/`.
 
 ## Pre-deploy (cek lokal)
 
@@ -66,6 +73,6 @@ commit tersebut membawa migrasi di `drizzle/`.
 
 ## Yang TIDAK dipakai untuk deploy
 
-- `make deploy` — target di `02-application/Makefile` hanya `echo`; ini sisa
-  template dan tidak mendeploy apa pun.
+- `make deploy` — sengaja gagal dengan pesan yang mengarahkan ke CI (lihat
+  `02-application/Makefile`); deploy tidak pernah dijalankan dari mesin lokal.
 - SSH ke server — tidak relevan; aplikasi tidak dilayani dari VM mana pun.

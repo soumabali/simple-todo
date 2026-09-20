@@ -108,6 +108,36 @@ perbaiki jadi dua pemanggilan terpisah yang benar-benar menguji klaimnya.
   mengarahkan ke CI (diuji: `make check` hijau, `make deploy` exit ≠ 0).
 - `runbooks/troubleshooting.md` diisi masalah nyata + penyebab + solusi.
 
+## Lanjutan: `03-history/deployment-logs/` diisi
+
+Direktori itu kosong sejak awal (hanya `.gitkeep`), jadi item terakhir dari
+daftar "belum selesai" adalah mengisinya dengan sesuatu yang berguna — bukan
+sekadar log deploy rutin yang sudah bisa dilihat di GitHub Actions.
+
+Yang ditemukan saat menggali `gh run list`: **dua deploy produksi pertama
+(19 Sep) gagal**, dan penyebabnya hanya tersimpan sebagai pesan commit:
+
+1. `Apply Neon policy` → `HTTP 422 "maximum number of protected branches"`.
+   `neon.ts` menandai branch default `protected: true`, sementara plan free
+   membatasi jumlah branch yang boleh diproteksi. Diperbaiki di `18270a2`.
+2. `Deploy web Worker` → CI memakai Node 20, `wrangler` 4.130 butuh ≥22.
+   Diperbaiki di `40f6d26`.
+
+Dibuat `2026-09-19-ci-launch-blockers.md` + `README.md` (konvensi + cara
+memeriksa status deploy). Dua pelajaran yang layak diingat:
+
+- **Step pertama yang merah adalah satu-satunya yang informatif.** Kegagalan
+  pertama hanya muncul sebagai satu step merah diikuti enam step `skipped`;
+  membaca pesan error saja tidak cukup, urutan step-nya yang menuntun.
+- **Urutan CI penting: `migrate` berjalan sebelum `deploy`.** Kegagalan kedua
+  terjadi *setelah* migrasi sukses — skema database sudah berubah sementara
+  kode aplikasinya belum. Itu keadaan setengah jalan, bukan sekadar "deploy
+  gagal". Runbook deployment kini menyebut hal ini.
+
+Catatan metode: `gh run view <id> --log` mengembalikan output **kosong** untuk
+run 19 Sep di mesin ini; yang bekerja adalah
+`gh api .../actions/runs/<id>/jobs`, yang memberi status per step.
+
 ## Kebersihan
 
 Fixture (user, board, task, dua notifikasi) dibuat lewat script `06-temp/*.tmp.ts`
@@ -116,5 +146,5 @@ bebas, working tree bersih sebelum commit.
 
 ## Berikutnya (belum dikerjakan)
 
-- `03-history/deployment-logs/` masih kosong — belum ada log deploy yang
-  diarsipkan dari CI.
+- Tidak ada item terbuka dari daftar ini. Audit fitur/UI (`e2e-report.md`) dan
+  hygiene dokumen sudah tuntas.

@@ -64,6 +64,7 @@ npm run build
 ## Catatan
 
 - Lihat `00-meta/` untuk mapping port, URL, dan credential.
+- Deploy: `.github/workflows/deploy.yml` (otomatis saat push ke `main`). Runbook di `01-documents/runbooks/deployment.md`, insiden deploy di `03-history/deployment-logs/`.
 - Akun admin pertama dibuat oleh seed script; user lain dibuat admin via UI (`/admin/users`).
 - VAPID keys harus dibuat sekali (`npx @pushforge/builder generate-vapid-keys`) dan disimpan; rotasi mematikan semua subscription.
 - Status implementasi per modul PRD: M1–M8 (auth, board, status, task, Gantt, notifikasi/PWA, subscription hygiene, admin) + worker cron semuanya terpasang dan terverifikasi end-to-end terhadap Postgres lokal.
