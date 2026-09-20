@@ -21,6 +21,7 @@ export function AppShell({ children, initialUser }: { children: React.ReactNode;
   const navItems = [
     { href: "/boards", label: "Boards", active: pathname.startsWith("/boards") },
     { href: "/notifications", label: "Notifications", active: pathname.startsWith("/notifications") },
+    { href: "/settings/api-keys", label: "API", active: pathname.startsWith("/settings/api-keys") },
   ];
   if (isAdmin) {
     navItems.push({ href: "/admin/users", label: "Admin", active: pathname.startsWith("/admin") });

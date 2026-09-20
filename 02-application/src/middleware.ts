@@ -17,7 +17,14 @@ const SESSION_COOKIES = [
   "better-auth.session_token",
 ];
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/push/public-key"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth",
+  "/api/push/public-key",
+  // Public REST API: authenticated by API key inside each handler, not by a
+  // session cookie — so the edge middleware must let it through.
+  "/api/v1",
+];
 
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

@@ -327,3 +327,53 @@ export const loginAttempts = pgTable(
     index("idx_login_attempts_ip").on(t.ip, t.createdAt),
   ]
 );
+
+/* =====================================================================
+ * PUBLIC API KEYS
+ * Each user may mint personal API keys that authenticate the /api/v1
+ * endpoints (integration with third-party systems, Hermes, scripts…).
+ *
+ * Security model:
+ *  - Only the SHA-256 hash of the key is stored; the plaintext is shown
+ *    exactly once, at creation time, and is unrecoverable afterwards.
+ *  - `prefix` is stored in the clear purely so the UI can display which
+ *    key is which ("fbk_1a2b…").
+ *  - A key always resolves to exactly one owner; every /api/v1 query is
+ *    scoped to that user, so a key can never reach another user's data.
+ * ===================================================================== */
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(), // e.g. "fbk_1a2b3c4d" — display only
+    keyHash: text("key_hash").notNull().unique(), // sha256(plaintext), hex
+    scopes: jsonb("scopes").$type<string[]>().notNull().default(["read", "write"]),
+    lastUsedAt: timestamp("last_used_at"),
+    expiresAt: timestamp("expires_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_api_keys_user").on(t.userId, t.revokedAt),
+    index("idx_api_keys_prefix").on(t.prefix),
+  ]
+);
+
+/** Durable per-key request counter (Workers isolates do not share memory). */
+export const apiRateLimits = pgTable(
+  "api_rate_limits",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    keyId: uuid("key_id")
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: "cascade" }),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [uniqueIndex("uq_api_rate_key_window").on(t.keyId, t.windowStart)]
+);

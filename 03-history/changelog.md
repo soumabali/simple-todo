@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added (Public API + API key per user)
+- **API key per user** (`/settings/api-keys`): setiap user dapat membuat key sendiri untuk integrasi eksternal (script, n8n, asisten seperti Hermes). Key berformat `fbk_<64 hex>`, **hanya hash SHA-256 yang disimpan**, ditampilkan sekali saat dibuat, mendukung scope `read`/`write` dan masa berlaku opsional. Daftar key menampilkan `lastUsedAt`, dan revoke berlaku seketika.
+- **Public REST API v1** (`/api/v1`), diautentikasi lewat `Authorization: Bearer <key>` atau `x-api-key`:
+  - `GET /me` — verifikasi key + profil pemilik
+  - `GET /boards` — board + kolom (status) + hitungan task
+  - `GET /todos` — daftar todo dengan filter `boardId`, `statusId`, `state`, `due` (overdue/today/week/soon), `within`, `q`, `limit`
+  - `POST /todos`, `GET/PATCH/DELETE /todos/:id` — CRUD penuh, termasuk `completed: true/false` untuk selesai/reopen
+  - `GET /todos/expiring` — bucket `overdue` / `today` / `soon` dalam satu panggilan
+  - `GET /reminders` — agenda (`upcoming`, `inbox`, `kinds`), `POST /reminders` — tandai dibaca
+- **Isolasi data per key**: setiap query dibatasi ke user pemilik key; board/task milik user lain mengembalikan 404 (bukan 403) agar keberadaannya tidak bocor.
+- **Rate limit** 120 request/menit per key, dengan header `X-RateLimit-Limit`/`Remaining`/`Reset` dan `Retry-After` saat 429.
+- **CORS + preflight** untuk seluruh permukaan `/api/v1`, sehingga dapat dipanggil dari browser maupun server.
+- **Dokumentasi integrasi** `01-documents/api.md` — referensi endpoint, contoh `curl` siap pakai, dan pola aman (key read-only untuk pelaporan, `rw` hanya bila perlu menulis).
+
+### Fixed
+- `POST /api/v1/todos` tidak menegakkan scope `write` — key read-only sebelumnya dapat membuat task. Kini mengembalikan 403.
+- `PATCH /api/v1/todos/:id` dengan `completed: false` tidak memindahkan task keluar kolom Done — status tetap `done` dan progress tetap 100. Kini dipindah ke kolom terbuka pertama dengan `completedAt` dikosongkan.
+- `assertDate()` menerima tanggal mustahil (mis. `2026-02-30`) karena `Date.parse` meroll-over. Kini divalidasi round-trip.
+
 ### Added (Gantt view + kontrol kolom)
 - **Gantt view** (tab ketiga di board, `/boards/:id?view=gantt`): timeline bulan+harian, shading weekend, bar berwarna per status, milestone (diamond), progress fill, drag-to-move + drag-edge-to-resize, tooltip hover, tray *unscheduled*, dan grup per status yang bisa dilipat.
 - **Today-centring**: hari ini selalu berada di tengah viewport; otomatis re-center saat preset (`1M/3M/6M/1Y/All`), zoom, atau tombol `◎ Today` berubah, dan tetap stabil saat ukuran jendela berubah. Kolom hari ini diberi tint + pill + marker gradien agar langsung tertangkap mata.
