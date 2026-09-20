@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type User = {
   id: string;
@@ -26,6 +27,8 @@ export default function AdminUsersPage() {
   const [newRole, setNewRole] = useState("user");
   const [generated, setGenerated] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // U10: deletion is confirmed through the shared ConfirmDialog, not native confirm().
+  const [pendingDelete, setPendingDelete] = useState<User | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users", q, role, status, page],
@@ -178,7 +181,7 @@ export default function AdminUsersPage() {
                     <button className="btn btn-ghost text-xs" onClick={() => toggleBan.mutate({ id: u.id, banned: !u.banned })}>
                       {u.banned ? "Activate" : "Deactivate"}
                     </button>
-                    <button className="btn btn-ghost text-xs" style={{ color: "var(--danger)" }} onClick={() => { if (confirm(`Delete ${u.email}?`)) deleteUser.mutate(u.id); }}>Delete</button>
+                    <button className="btn btn-ghost text-xs" style={{ color: "var(--danger)" }} onClick={() => setPendingDelete(u)}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -192,6 +195,24 @@ export default function AdminUsersPage() {
         <span className="text-sm" style={{ color: "var(--muted)" }}>Page {page} of {totalPages}</span>
         <button className="btn btn-ghost text-sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete user"
+        message={
+          pendingDelete
+            ? `Delete ${pendingDelete.email}? This permanently removes the account and everything owned by it (boards, tasks, API keys).`
+            : undefined
+        }
+        confirmLabel="Delete user"
+        danger
+        busy={deleteUser.isPending}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          deleteUser.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) });
+        }}
+      />
     </div>
   );
 }

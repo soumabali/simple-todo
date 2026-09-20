@@ -105,9 +105,11 @@ Commit `b480c2b` / `2a7e852`. Diverifikasi di browser produksi (0 JS error) + AP
 | U5 Empty state kolom | ✅ | "Drop tasks here" / "No matching tasks" |
 | U6 Shortcut `/` fokus search | ✅ | terpasang |
 | U7 Palet warna lengkap | ✅ | `--sky/--violet/--slate` terverifikasi ada di bundle CSS produksi |
-| U10 ConfirmDialog menggantikan `confirm()` | ✅ | dipakai di hapus task/board/kolom |
+| U8 Halaman profil (nama + timezone) | ✅ | `/settings/profile`: save → header ikut berubah, tersimpan di server |
+| U9 Indikator loading "Mark all as read" | ✅ | `Mark all as read` → `Marking…` (disabled, `aria-busy`) → badge unread hilang |
+| U10 ConfirmDialog menggantikan `confirm()` | ✅ | hapus task/board/kolom + hapus user (Cancel membatalkan, Confirm menghapus) |
 
-**Sisa (Fase 3, opsional):** U8 (halaman profil: ganti nama/timezone), U9 (indikator loading notifikasi — tercakup via BUG-8).
+**Fase 3 selesai.** U8, U9, dan U10 semuanya terverifikasi di browser pada 2026-09-20. Tidak ada sisa task UI dari laporan ini.
 
 ---
 

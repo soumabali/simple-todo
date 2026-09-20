@@ -64,10 +64,10 @@ export function AppShell({ children, initialUser }: { children: React.ReactNode;
             ⚙️
           </Link>
           <Link
-            href="/change-password"
+            href="/settings/profile"
             className="text-sm px-2 py-1.5 rounded-lg hidden sm:inline"
             style={{ color: "var(--muted)" }}
-            title="Change password"
+            title="Profile — display name and timezone"
           >
             {initialUser?.name ?? initialUser?.email}
           </Link>

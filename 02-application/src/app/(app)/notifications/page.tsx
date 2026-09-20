@@ -46,8 +46,13 @@ export default function NotificationsPage() {
             </span>
           )}
         </h1>
-        <button className="btn btn-ghost text-sm" onClick={() => markAll.mutate()} disabled={unread === 0}>
-          Mark all as read
+        <button
+          className="btn btn-ghost text-sm"
+          onClick={() => markAll.mutate()}
+          disabled={unread === 0 || markAll.isPending}
+          aria-busy={markAll.isPending}
+        >
+          {markAll.isPending ? "Marking…" : "Mark all as read"}
         </button>
       </div>
 

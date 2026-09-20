@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added (Profil, notifikasi, modal konfirmasi)
+- **Halaman profil** (`/settings/profile`, U8): user dapat mengganti nama tampilan dan timezone sendiri. Timezone divalidasi lewat `Intl` — bukan kosmetik, karena seluruh perhitungan reminder (jam default, quiet hours, "due today") memakai zona ini. Ada saran otomatis dari zona browser, tombol Reset, dan tautan cepat ke ganti password / setelan notifikasi / API keys. Email dan role tetap dikelola admin.
+- **`GET`/`PATCH /api/settings/profile`**: endpoint sesi untuk membaca dan memperbarui nama + timezone; menolak timezone tak dikenal (`400`), nama kosong/terlalu panjang, dan body tanpa field yang bisa diubah.
+- **Indikator loading "Mark all as read"** (U9): tombol menampilkan `Marking…`, disabled, dan `aria-busy` selama request berjalan.
+
+### Changed
+- **Modal konfirmasi hapus user** (U10): `confirm()` native di halaman admin diganti `ConfirmDialog` yang bisa diakses (Escape, klik luar, tombol Cancel/Delete, state busy saat proses), menutup sisa terakhir pemakaian dialog bawaan browser.
+- Header aplikasi kini menautkan ke halaman profil (sebelumnya ke ganti password, yang sekarang dijangkau dari halaman profil).
+
 ### Added (Public API + API key per user)
 - **API key per user** (`/settings/api-keys`): setiap user dapat membuat key sendiri untuk integrasi eksternal (script, n8n, asisten seperti Hermes). Key berformat `fbk_<64 hex>`, **hanya hash SHA-256 yang disimpan**, ditampilkan sekali saat dibuat, mendukung scope `read`/`write` dan masa berlaku opsional. Daftar key menampilkan `lastUsedAt`, dan revoke berlaku seketika.
 - **Public REST API v1** (`/api/v1`), diautentikasi lewat `Authorization: Bearer <key>` atau `x-api-key`:
