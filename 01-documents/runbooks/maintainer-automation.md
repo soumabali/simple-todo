@@ -12,10 +12,27 @@ tidak ada otomasi yang berjalan tanpa jalan keluar.
 |---|---|---|---|
 | `verify` (CI) | push ke `main`/`develop`, semua PR | `contents: read` | Tidak ada — hanya membaca dan menjalankan test |
 | `deploy` (CI) | push ke `main`/`develop` | secret repo | Cloudflare Workers, migrasi DB, secret Worker |
-| `notify-issues.py` | cron Hermes, tiap 15 menit | baca GitHub saja | Tidak ada — hanya mengirim notifikasi |
+| `notify-issues.py` | cron Hermes, tiap 15 menit (menit :00,:15,:30,:45) | baca GitHub saja | Tidak ada — hanya mengirim notifikasi |
+| `triage-issues.py` | cron Hermes, tiap 15 menit (menit :07,:22,:37,:52) | `issues: write` | **Menempel label** pada issue/PR terbuka |
 
-Yang **tidak** berjalan otomatis sampai Fase 2–4 selesai: menulis komentar,
-menempel label, membuka/meng-*merge* PR, rollback. Lihat
+**Batas tulis triage — ini yang membuat payload tidak berbahaya.** Satu-satunya
+operasi tulis yang bisa diterbitkan triage adalah menambahkan label di dalam
+namespace-nya sendiri (`type:`, `priority:`, `automation:`). Ia tidak berkomentar,
+tidak menutup, tidak meng-*merge*, tidak menyentuh branch. Batas itu **diuji**,
+bukan diasumsikan: fixture menjalankan seluruh pipeline di atas 10 issue sintetis
+lalu memastikan setiap panggilan tulis berbentuk penambahan label.
+
+Konsekuensinya disengaja: issue yang mencurigakan tetap mendapat label
+`automation: needs-human`, dan **tidak** mendapat label tipe. Otomasi tidak
+menebak tipe issue yang isinya sedang ia curigai.
+
+Eskalasi dikirim ke Telegram, bukan ke thread publik — sampai identitas bot
+dipisahkan dari akun maintainer (issue #4), komentar otomatis terbit atas nama
+Dhar, dan kalimat yang lolos dari injeksi akan terbaca sebagai pernyataan
+maintainer.
+
+Yang **tidak** berjalan otomatis sampai Fase 2–4 selesai: komentar, membuka atau
+meng-*merge* PR, rollback, deploy. Lihat
 `01-documents/maintainer-automation-roadmap.md`.
 
 ---
@@ -29,11 +46,20 @@ sekarang):
 
 ```
 hermes cron pause 03853873fed3          # job: "simple-todo: notifikasi issue & PR"
+hermes cron pause dea718bfc0d9          # job: "simple-todo: triage issue"
 hermes cron list                        # verifikasi statusnya paused
 ```
 
 Dari dalam sesi Hermes, alatnya `cronjob_manage` dengan `action='pause'` dan
-`job_id='03853873fed3'`.
+`job_id` di atas.
+
+**Bila triage sudah salah melabeli sesuatu**, label yang ia tulis semuanya ada di
+namespace `automation:` dan tidak pernah menimpa label manusia — jadi pemulihan
+cukup menghapusnya, tanpa khawatir tentang keputusan orang yang tertimpa:
+
+```bash
+gh issue edit <nomor> --remove-label "automation: needs-human"
+```
 
 **Hentikan deploy otomatis** (kalau CI men-deploy sesuatu yang buruk):
 

@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Added (Triage otonom — Fase 1)
+
+Tahap kedua menuju pengelolaan repo yang mandiri: issue dari luar kini
+diklasifikasi, dilabeli, dan yang mencurigakan dieskalasi ke maintainer. Bukti
+dan angka lengkapnya ada di `01-documents/maintainer-automation-roadmap.md` §6b.
+
+- **`scripts/triage-issues.py`** — cron tiap 15 menit (menit :07,:22,:37,:52), berselang-seling dengan notifier agar tidak bertabrakan. Mengklasifikasi judul + isi tiap issue terbuka terhadap pola tipe dan prioritas, memberi label, dan mendeteksi duplikat lewat kemiripan judul.
+- **Triage hanya menulis label.** Tidak berkomentar, tidak menutup, tidak meng-*merge*. Batas ini bukan janji di dokumentasi melainkan **diuji**: satu fixture menjalankan seluruh pipeline di atas 10 issue sintetis dan gagal bila ada operasi tulis selain penambahan label, atau label di luar namespace `type:`/`priority:`/`automation:`.
+- **Eskalasi ke Telegram, bukan ke thread publik.** Sampai identitas bot dipisahkan dari akun maintainer (issue #4), komentar otomatis terbit atas nama Dhar — kalimat yang lolos dari injeksi akan terbaca sebagai pernyataan maintainer, bukan kesalahan bot.
+- **Issue mencurigakan tidak diberi label tipe.** Otomasi tidak menebak tipe issue yang isinya sedang ia curigai; ia menandainya `automation: needs-human` dan berhenti di situ.
+- **Ledger keputusan** di `~/.hermes/cron/simple-todo-triage-ledger.jsonl`: tiap keputusan tercatat, termasuk `dry_run` dan alasan klasifikasi.
+- **Eskalasi dilaporkan sekali.** State di `simple-todo-triage-state.json` mencegah alert yang sama terulang tiap 15 menit; isi issue yang berubah memicu alert baru.
+- **`scripts/gh_util.py`** — helper bersama notifier + triager (pemindaian injeksi, uji kepemilikan, escaping). Dua salinan aturan keamanan cepat atau lambat akan berbeda, dan perbedaannya adalah lubang.
+
+### Fixed (Triage otonom — Fase 1)
+
+- **Label yang berhasil dipasang dilaporkan gagal.** `gh issue edit` membalas dengan URL, bukan JSON, sedangkan helper `gh()` memaksa `json.loads` untuk semua subperintah — sehingga setiap penulisan label yang sukses melempar `JSONDecodeError` dan tercatat sebagai kegagalan. Hanya ketahuan dengan menjalankannya terhadap GitHub. Fixture versi pertama tidak bisa menangkapnya karena mengganti seluruh fungsi `gh`, sehingga kode parsing di dalamnya tak pernah dieksekusi; kini ada fixture yang menjalankan biner `gh` tiruan lewat subprocess. Diuji dengan mutasi: menghapus cabang `expect_json` membuat suite merah.
+- **Ledger mencatat label yang tidak pernah terpasang.** Jejak audit yang berbohong lebih buruk daripada tidak ada jejak, karena ia dipercaya. Kini `labels_attempted` dan `labels_added` dicatat terpisah, beserta `error`-nya.
+- **Satu label yang hilang menghentikan seluruh triage.** `automation: needs-human` belum ada di repo, dan kegagalan pertama membatalkan sisa antrean. Kini kegagalan per-issue dihitung di `failed=`, dilaporkan, dan antrean berlanjut.
+- **`NameError` pada setiap run terjadwal.** Baris ringkasan memakai `len(escalations)` — variabel lokal `run()` yang tidak ada di scope pemanggilnya — sehingga cron gagal setiap kali sementara self-test tetap hijau. Baris itu diekstrak jadi `summary_line()` dan kini diuji; mutasi yang mengembalikan bug-nya membuat suite merah.
+- **Self-test menulis ke ledger asli**, mengisi jejak audit dengan issue palsu #108–#110. Semua berkas state kini dialihkan ke direktori sementara selama pengujian.
+
 ### Added (Fondasi pengelolaan otonom repo)
 
 Repo ini bersiap dibuka untuk issue dan pull request publik. Tahap ini membangun
