@@ -58,6 +58,10 @@ jobs:
       # Both encode real bugs, so a regression fails CI rather than silently
       # weakening the defence.
       - run: python3 ../scripts/injection_scan.py --self-test
+      # Detection quality is covered above; this covers the API *shape* those
+      # callers rely on, so a rename fails here instead of quietly turning a
+      # maintainer tool into one that reports nothing.
+      - run: python3 ../scripts/injection_scan.py --contract-test
       - run: python3 ../scripts/notify-issues.py --self-test
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
       - run: npm run build
