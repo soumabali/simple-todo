@@ -37,7 +37,7 @@
 
 ## Verifikasi
 
-- **API produksi:** 15/15 assertion PASS (`verify-phase2.py`).
+- **API produksi:** 15/15 assertion PASS (skrip sekali pakai; cakupannya kini ada di `e2e-live.py` §2/§3/§6).
 - **Browser produksi:** login → edit board live → rename kolom live → buat label dari drawer →
   auto-attach → chip muncul di kartu. **0 JS error**.
 - **Gate lokal:** `typecheck` ✅, `eslint src/` ✅, `npm test` 22/22 ✅, `npm run build` ✅.
@@ -62,5 +62,5 @@
 ## Kebersihan
 
 - Data & user test (`*@flowboard.test`) + board hasil uji **sudah dihapus** dari DB produksi.
-- DB produksi bersih: 2 user nyata (`admin@flowboard.local`, `sudhar.denpasar@gmail.com`), 1 board.
+- DB produksi bersih: 2 user nyata (admin + 1 akun pemilik proyek), 1 board.
 - Working tree git bersih, semua commit ter-push ke `main`.

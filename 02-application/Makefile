@@ -20,8 +20,13 @@ lint:
 typecheck:
 	npm run typecheck && npm run typecheck:worker
 
-check: typecheck lint test
-	@echo "✅ typecheck + lint + tests passed"
+check: typecheck lint test secrets
+	@echo "✅ typecheck + lint + tests + secret scan passed"
+
+# Fails if a tracked file carries a credential-shaped value. This repo is
+# PUBLIC and once shipped a live test password; see 03-history/changelog.md.
+secrets:
+	@python3 ../scripts/check-secrets.py
 
 # Manual deploy is intentionally NOT provided: CI runs verify → migrate → deploy
 # on every push to main. See 01-documents/runbooks/deployment.md.

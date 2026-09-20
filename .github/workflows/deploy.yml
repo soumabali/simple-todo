@@ -22,6 +22,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
       - run: npm ci
+      # Fails if a tracked file carries a credential-shaped value. This repo is
+      # public, and a quick scan is cheap insurance against publishing one.
+      - run: python3 ../scripts/check-secrets.py
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
       - run: npm run build
         env:

@@ -7,7 +7,7 @@
 
 | Item | Nilai / status |
 |---|---|
-| Cloudflare account | `81e5bd15a7810cb281f887efa5f0f4d0` (Sudhar.journey@gmail.com) |
+| Cloudflare account | `81e5bd15a7810cb281f887efa5f0f4d0` (akun Dhar) |
 | Cloudflare API token | ✅ Workers write access (verified `wrangler whoami`) |
 | Neon project | `cold-brook-93438292` ("cursor", ap-southeast-1) — **bukan** `wandering-band-92657113` (project lama "Dhar" dari PRD) |
 | Neon branches | `production` (`br-tiny-star-azkz0uxw`) + `develop` (`br-holy-glade-azgslwww`) |

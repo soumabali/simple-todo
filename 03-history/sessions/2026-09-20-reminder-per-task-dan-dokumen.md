@@ -138,6 +138,48 @@ Catatan metode: `gh run view <id> --log` mengembalikan output **kosong** untuk
 run 19 Sep di mesin ini; yang bekerja adalah
 `gh api .../actions/runs/<id>/jobs`, yang memberi status per step.
 
+## Lanjutan: audit keamanan repo publik
+
+Setelah `deployment-logs` selesai, saya berhenti sebentar dan bertanya apa yang
+belum diperiksa. Jawabannya: **visibilitas repo**. Hasilnya `PUBLIC` — dan itu
+mengubah arti beberapa hal yang sebelumnya terlihat tidak berbahaya.
+
+**Temuan: kredensial akun uji production ter-commit di repo publik.**
+`03-history/e2e-live.py` dan `verify-phase2.py` menyimpan email + password
+akun E2E dalam bentuk literal. Karena repo publik, nilai itu **terbit ke
+internet**, bukan cuma tersimpan di riwayat git. Saya uji apakah masih hidup:
+login ke produksi → `401` untuk kedua akun, jadi **tidak ada kebocoran aktif**.
+Tetap diperbaiki karena skripnya dipakai berulang:
+
+- `e2e-live.py` → kredensial dari environment (`E2E_ADMIN_*`, `E2E_USER_*`,
+  `E2E_USER_NEW_PASSWORD`), tanpa nilai default.
+- Gerbang `E2E_CONFIRM=yes` ditambahkan, karena skrip ini **memutasi data
+  produksi** (buat/hapus user, reset password). Sebelumnya satu perintah saja
+  sudah cukup untuk menjalankannya. Diuji: tanpa gate → `exit 1`; dengan gate
+  tapi env kosong → melaporkan nama variabel yang kurang (bukan nilainya).
+- `verify-phase2.py` dihapus — 15 assertion-nya sudah tercakup di `e2e-live.py`
+  §2/§3/§6. Satu session note yang menyebut namanya diperbarui.
+
+**Pencegah, bukan cuma bersih-bersih:** `scripts/check-secrets.py` memindai
+berkas yang ter-track dan gagal `exit 1` bila menemukan bentuk kredensial.
+Terpasang di `make check` dan di job `verify` CI. Satu pelajaran penting di
+sini: **versi pertama scanner-nya cacat dan saya baru tahu setelah menguji
+dengan berkas tiruan** — ia melewatkan bentuk JSON seperti
+`{"password": "<nilai>"}` (tanda kutip sebelum titik dua mematahkan pola) dan
+bentuk `ADMIN_PASSWORD = "<nilai>"` (`\b` tidak cocok setelah `_`). Scanner
+yang melewatkan bentuk yang justru sudah pernah ter-commit lebih buruk
+daripada tidak ada.
+
+**Dua temuan lain saat menyisir:**
+
+- `02-application/cleanup-dev.tmp.ts` — skrip sekali pakai, ter-commit di
+  `3115441`, tidak direferensikan apa pun. Dihapus.
+- **Tidak ada `.gitignore` di root.** Jadi `06-temp/README.md` yang berbunyi
+  "selalu boleh dihapus" tidak ditegakkan apa pun: file scratch di situ ikut
+  ter-commit pada `git add -A` pertama. Root `.gitignore` dibuat; diuji dengan
+  menanam berkas scratch lalu `git check-ignore`.
+- Email pribadi di `deploy-guide.md` + satu session note diganti deskripsi peran.
+
 ## Kebersihan
 
 Fixture (user, board, task, dua notifikasi) dibuat lewat script `06-temp/*.tmp.ts`

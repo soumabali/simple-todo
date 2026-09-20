@@ -1,0 +1,28 @@
+# Files that must never be committed to this repository.
+
+# --- 06-temp/ is scratch space -------------------------------------------------
+# The folder convention says "always safe to delete", which only holds if its
+# contents stay out of git. Without this rule a scratch file lands in a commit
+# the first time anyone runs `git add -A`; a committed dev script once shipped
+# a live test password to this public repo.
+06-temp/*
+!06-temp/.gitkeep
+!06-temp/README.md
+
+# --- python -------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+
+# --- secrets ------------------------------------------------------------------
+# Belt and braces: the canonical env files live in 05-config/, but keep .env
+# out of git anywhere it appears.
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+
+# --- local agent/tooling state ------------------------------------------------
+.claude/
+.hermes/

@@ -58,6 +58,24 @@ Verifikasi fitur yang butuh sesi tidak bisa dilakukan tanpa kredensial
 production; pakai build produksi lokal (`npx next start -p 3000`) dengan
 database dev, bukan `npm run dev`, agar yang diuji adalah bundle yang sebenarnya.
 
+## Menjalankan E2E terhadap produksi
+
+`03-history/e2e-live.py` menguji produksi lewat HTTP API. **Skrip ini mengubah
+data** (membuat/menghapus user, reset password, mengedit board/task), jadi
+arahkan ke akun buangan — bukan data pengguna nyata.
+
+```bash
+cd 03-history
+E2E_ADMIN_EMAIL=... E2E_ADMIN_PASSWORD=... \
+E2E_USER_EMAIL=...  E2E_USER_PASSWORD=... \
+E2E_USER_NEW_PASSWORD=... \
+E2E_CONFIRM=yes python3 e2e-live.py
+```
+
+Tanpa `E2E_CONFIRM=yes` skrip berhenti, dan itu disengaja: gerbang ini ada agar
+skrip tidak jalan karena salah tekan. Kredensial **hanya** dari environment —
+repo ini publik, jadi jangan pernah menuliskan nilai apa pun ke dalam berkasnya.
+
 ## Rollback
 
 Tidak ada rollback perintah tunggal. Cara tercepat: revert commit yang bermasalah

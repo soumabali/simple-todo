@@ -1,12 +1,40 @@
 #!/usr/bin/env python3
-"""FlowBoard production E2E test harness (live against todo.nexigo.my.id)."""
-import json, time, sys, urllib.request, urllib.error, http.cookiejar, re
+"""FlowBoard production E2E test harness (live against todo.nexigo.my.id).
+
+Reads test credentials from the environment — this repository is public, so no
+credentials are stored in the file. Required:
+
+    E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD     admin account
+    E2E_USER_EMAIL  / E2E_USER_PASSWORD      regular user account
+    E2E_USER_NEW_PASSWORD                    temp password for the change-password test
+    E2E_CONFIRM=yes                          explicit go-ahead
+
+WARNING: this script MUTATES the target database — it creates and deletes
+users, resets passwords, and edits boards/tasks. Point it at a throwaway
+account, never at real user data, and only ever against a host you are allowed
+to change. The E2E_CONFIRM gate exists so it cannot be run by accident.
+"""
+import json, os, time, sys, urllib.request, urllib.error, http.cookiejar, re
 
 BASE = "https://todo.nexigo.my.id"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
-ADMIN = {"email": "e2e-admin@flowboard.test", "password": "E2ePassw0rd!"}
-USER  = {"email": "e2e-user@flowboard.test",  "password": "E2ePassw0rd!"}
+ADMIN = {"email": os.environ.get("E2E_ADMIN_EMAIL", ""), "password": os.environ.get("E2E_ADMIN_PASSWORD", "")}
+USER  = {"email": os.environ.get("E2E_USER_EMAIL", ""),  "password": os.environ.get("E2E_USER_PASSWORD", "")}
+NEW_PASSWORD = os.environ.get("E2E_USER_NEW_PASSWORD", "")
+
+if os.environ.get("E2E_CONFIRM") != "yes":
+    sys.exit(
+        "Refusing to run: set E2E_CONFIRM=yes to acknowledge that this script\n"
+        "mutates the target database (creates/deletes users, resets passwords)."
+    )
+_missing = [k for k, v in {
+    "E2E_ADMIN_EMAIL": ADMIN["email"], "E2E_ADMIN_PASSWORD": ADMIN["password"],
+    "E2E_USER_EMAIL": USER["email"], "E2E_USER_PASSWORD": USER["password"],
+    "E2E_USER_NEW_PASSWORD": NEW_PASSWORD,
+}.items() if not v]
+if _missing:
+    sys.exit("Missing required environment variables: " + ", ".join(_missing))
 
 results = []  # list of (name, ok, detail)
 def record(name, ok, detail=""):
@@ -343,7 +371,7 @@ record("12.2 cross-user task -> 404", st == 404, f"got {st}")
 section("13. CHANGE PASSWORD (self-service)")
 
 # change user password
-st, js, _ = c_user.req("POST", "/api/auth/change-password", {"currentPassword": USER["password"], "newPassword": "NewE2ePassw0rd!", "revokeOtherSessions": True})
+st, js, _ = c_user.req("POST", "/api/auth/change-password", {"currentPassword": USER["password"], "newPassword": NEW_PASSWORD, "revokeOtherSessions": True})
 record("13.1 change-password 200", st == 200, f"got {st} {str(js)[:100]}")
 
 # verify old password fails
@@ -353,11 +381,11 @@ record("13.2 old password -> 401", st == 401, f"got {st}")
 
 # verify new password works
 c_new = Client("new")
-st, js, _ = login(c_new, USER["email"], "NewE2ePassw0rd!")
+st, js, _ = login(c_new, USER["email"], NEW_PASSWORD)
 record("13.3 new password -> 200", st == 200, f"got {st}")
 
 # revert user password
-st, js, _ = c_new.req("POST", "/api/auth/change-password", {"currentPassword": "NewE2ePassw0rd!", "newPassword": USER["password"], "revokeOtherSessions": True})
+st, js, _ = c_new.req("POST", "/api/auth/change-password", {"currentPassword": NEW_PASSWORD, "newPassword": USER["password"], "revokeOtherSessions": True})
 record("13.4 revert password 200", st == 200, f"got {st}")
 
 # ---------------- 14. LOGOUT ----------------
