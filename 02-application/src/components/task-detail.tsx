@@ -13,6 +13,12 @@ export function TaskDetail({ data, taskId, onClose }: { data: BoardData; taskId:
   const [description, setDescription] = useState(task?.description ?? "");
   const [startDate, setStartDate] = useState(task?.startDate ?? "");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
+  const [dueTime, setDueTime] = useState(task?.dueTime ? String(task.dueTime).slice(0, 5) : "");
+  const [remindOnStart, setRemindOnStart] = useState(task?.remindOnStart ?? false);
+  const [remindersMuted, setRemindersMuted] = useState(task?.remindersMuted ?? false);
+  const [leadInput, setLeadInput] = useState(
+    task?.remindLeadMinutes !== null && task?.remindLeadMinutes !== undefined ? String(task.remindLeadMinutes) : ""
+  );
   const [priority, setPriority] = useState(task?.priority ?? 2);
   const [progress, setProgress] = useState(task?.progress ?? 0);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -59,6 +65,15 @@ export function TaskDetail({ data, taskId, onClose }: { data: BoardData; taskId:
   const schedule = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       withFeedback(() => api(`/api/tasks/${taskId}/schedule`, { method: "PATCH", body: JSON.stringify(body) })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["board", data.board.id] }),
+  });
+
+  // Per-task reminder overrides (PRD F-4.3). The API has existed since the
+  // reminder engine shipped; the drawer just never exposed it, so every task
+  // was stuck on the board-wide defaults.
+  const reminders = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      withFeedback(() => api(`/api/tasks/${taskId}/reminders`, { method: "PATCH", body: JSON.stringify(body) })),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["board", data.board.id] }),
   });
 
@@ -121,7 +136,7 @@ export function TaskDetail({ data, taskId, onClose }: { data: BoardData; taskId:
 
   function saveSchedule() {
     if (dateError) return;
-    schedule.mutate({ startDate: startDate || null, dueDate: dueDate || null });
+    schedule.mutate({ startDate: startDate || null, dueDate: dueDate || null, dueTime: dueTime || null });
   }
 
   return (
@@ -230,7 +245,7 @@ export function TaskDetail({ data, taskId, onClose }: { data: BoardData; taskId:
             </div>
             <div>
               <label className="block text-sm mb-1">Due date</label>
-              <input type="date" className="input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} onBlur={saveSchedule} />
+              <input type="date" className="input" value={dueDate} onChange={(e) => { setDueDate(e.target.value); }} onBlur={saveSchedule} />
             </div>
           </div>
           {dateError && (
@@ -238,6 +253,100 @@ export function TaskDetail({ data, taskId, onClose }: { data: BoardData; taskId:
               Start date must be before or equal to due date.
             </div>
           )}
+
+          {/* Due time drives the due_soon reminder: without it the engine falls
+              back to the board-wide default delivery time. */}
+          <div>
+            <label className="block text-sm mb-1">Due time (optional)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="time"
+                className="input"
+                value={dueTime}
+                disabled={!dueDate}
+                aria-label="Due time"
+                onChange={(e) => { setDueTime(e.target.value); }}
+                onBlur={saveSchedule}
+              />
+              {dueTime && (
+                <button type="button" className="btn btn-ghost text-xs" onClick={() => { setDueTime(""); schedule.mutate({ startDate: startDate || null, dueDate: dueDate || null, dueTime: null }); }}>
+                  Clear
+                </button>
+              )}
+            </div>
+            {!dueDate && (
+              <div className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                Set a due date first — the due time only applies when there is a deadline.
+              </div>
+            )}
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--card-border)" }} className="pt-4">
+            <div className="text-sm font-medium mb-2">Reminders</div>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={remindersMuted}
+                  disabled={!dueDate && !startDate}
+                  onChange={(e) => { setRemindersMuted(e.target.checked); reminders.mutate({ muted: e.target.checked }); }}
+                />
+                Mute reminders for this task
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={remindOnStart}
+                  disabled={!startDate || remindersMuted}
+                  onChange={(e) => { setRemindOnStart(e.target.checked); reminders.mutate({ remindOnStart: e.target.checked }); }}
+                />
+                Remind me when the start date arrives
+              </label>
+              <div>
+                <label className="block text-sm mb-1">Lead time override (minutes)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    className="input"
+                    placeholder="Use board default"
+                    aria-label="Lead time override"
+                    value={leadInput}
+                    disabled={remindersMuted || (!dueDate && !startDate)}
+                    title={remindersMuted || (!dueDate && !startDate) ? "Give this task a date, and unmute it, to set a lead time" : undefined}
+                    onChange={(e) => setLeadInput(e.target.value)}
+                    onBlur={() => {
+                      const raw = leadInput.trim();
+                      const next = raw === "" ? null : Math.max(0, Math.floor(Number(raw)));
+                      if (raw !== "" && !Number.isFinite(next as number)) return;
+                      const current = task.remindLeadMinutes ?? null;
+                      if (next === current) return;
+                      reminders.mutate({ leadMinutes: next });
+                    }}
+                  />
+                  {task.remindLeadMinutes !== null && task.remindLeadMinutes !== undefined && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost text-xs"
+                      onClick={() => { setLeadInput(""); reminders.mutate({ leadMinutes: null }); }}
+                    >
+                      Use default
+                    </button>
+                  )}
+                </div>
+                <div className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                  {task.remindLeadMinutes === null || task.remindLeadMinutes === undefined
+                    ? "Using the board default from Notification settings."
+                    : `Overridden for this task (board default ignored).`}
+                </div>
+              </div>
+              {reminders.isError && (
+                <div className="text-xs" style={{ color: "var(--danger)" }}>
+                  {(reminders.error as Error)?.message ?? "Could not update reminders"}
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>

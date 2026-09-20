@@ -1,16 +1,19 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 type Notification = {
   id: number;
+  taskId: string;
   kind: string;
   status: string;
   scheduledFor: string;
   sentAt: string | null;
   readAt: string | null;
   taskTitle: string;
+  boardId: string | null;
 };
 
 export default function NotificationsPage() {
@@ -22,6 +25,11 @@ export default function NotificationsPage() {
 
   const markAll = useMutation({
     mutationFn: () => api("/api/notifications", { method: "POST", body: JSON.stringify({ all: true }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+
+  const markOne = useMutation({
+    mutationFn: (id: number) => api("/api/notifications", { method: "POST", body: JSON.stringify({ ids: [id] }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
@@ -72,13 +80,35 @@ export default function NotificationsPage() {
                 <span className="text-xs font-medium" style={{ color: "var(--accent)" }}>
                   {kindLabel[n.kind] ?? n.kind}
                 </span>
-                {n.sentAt && (
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>
-                    {new Date(n.sentAt).toLocaleString()}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {n.sentAt && (
+                    <span className="text-xs" style={{ color: "var(--muted)" }}>
+                      {new Date(n.sentAt).toLocaleString()}
+                    </span>
+                  )}
+                  {!n.readAt && (
+                    <button
+                      className="btn btn-ghost text-xs"
+                      onClick={() => markOne.mutate(n.id)}
+                      disabled={markOne.isPending}
+                      aria-label={`Mark "${n.taskTitle}" as read`}
+                    >
+                      Mark read
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="text-sm font-medium mt-1">{n.taskTitle}</div>
+              {n.boardId ? (
+                <Link
+                  href={`/boards/${n.boardId}?task=${n.taskId}`}
+                  className="text-sm font-medium mt-1 inline-block hover:underline"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  {n.taskTitle}
+                </Link>
+              ) : (
+                <div className="text-sm font-medium mt-1" style={{ color: "var(--muted)" }}>{n.taskTitle}</div>
+              )}
             </div>
           ))}
         </div>

@@ -120,6 +120,57 @@ describe("computeReminders (PRD §6.3)", () => {
     );
     expect(out).toHaveLength(0);
   });
+
+  // Per-task overrides are exposed in the task drawer (PRD F-4.3). The engine
+  // must prefer them over the board-wide settings, and `0` is a real value —
+  // not "unset" — so it must not fall through to the default.
+  it("prefers the per-task lead time over the board default", () => {
+    const out = computeReminders(
+      schedule({ dueDate: "2026-09-18", remindLeadMinutes: 60 }),
+      settings, // leadMinutesDue is 1440
+      TZ,
+      NOW
+    );
+    const dueSoon = out.find((r) => r.kind === "due_soon")!;
+    // due day 08:00 local (00:00 UTC) minus 60 minutes.
+    expect(utc(dueSoon.scheduledFor)).toBe("2026-09-17T23:00:00.000Z");
+  });
+
+  it("treats a per-task lead of 0 as an override, not as unset", () => {
+    const out = computeReminders(
+      schedule({ dueDate: "2026-09-18", remindLeadMinutes: 0 }),
+      settings,
+      TZ,
+      NOW
+    );
+    const dueSoon = out.find((r) => r.kind === "due_soon")!;
+    // Fires exactly at the deadline: 2026-09-18 08:00 local = 00:00 UTC.
+    expect(utc(dueSoon.scheduledFor)).toBe("2026-09-18T00:00:00.000Z");
+  });
+
+  it("applies the per-task lead to start_soon too", () => {
+    const out = computeReminders(
+      schedule({ startDate: "2026-09-15", remindOnStart: true, remindLeadMinutes: 120 }),
+      settings, // leadMinutesStart is 0
+      TZ,
+      NOW
+    );
+    const startSoon = out.find((r) => r.kind === "start_soon")!;
+    // 08:00 local minus 2 hours = 06:00 local = 2026-09-14T22:00:00Z.
+    expect(utc(startSoon.scheduledFor)).toBe("2026-09-14T22:00:00.000Z");
+  });
+
+  it("keeps the per-task lead independent of the mute toggle", () => {
+    // Muting suppresses output; unmuting must restore the *same* schedule,
+    // i.e. the override is not consumed or reset by computeReminders.
+    const base = schedule({ dueDate: "2026-09-18", remindLeadMinutes: 60 });
+    const muted = computeReminders({ ...base, remindersMuted: true }, settings, TZ, NOW);
+    const live = computeReminders(base, settings, TZ, NOW);
+    expect(muted).toHaveLength(0);
+    // Same instant as the plain 60-minute override: 2026-09-17T23:00:00Z.
+    const dueSoon = live.find((r) => r.kind === "due_soon")!;
+    expect(utc(dueSoon.scheduledFor)).toBe("2026-09-17T23:00:00.000Z");
+  });
 });
 
 describe("applyQuietHours (PRD §6.3)", () => {

@@ -2,8 +2,31 @@
 
 ## [Unreleased]
 
+### Added (Kontrol reminder per task + jam jatuh tempo)
+
+- **Setelan reminder per task di panel task detail**: task kini punya tiga override yang selama ini hanya ada di API — *Mute reminders for this task*, *Remind me when the start date arrives*, dan *Lead time override (minutes)* (`PATCH /api/tasks/:id/reminders`). Sebelumnya tidak ada satu pun pemanggil dari UI, sehingga semua task terkunci pada setelan board: reminder task yang tidak penting tidak bisa dimatikan, dan lead time khusus task penting tidak bisa diatur. Kontrol dinonaktifkan bila task belum punya tanggal, dan tombol **Use default** mengembalikan override ke nilai board.
+- **Jam jatuh tempo (due time) di panel task detail**: input `type="time"` menyimpan `dueTime` lewat `PATCH /api/tasks/:id/schedule`. Sebelumnya field ini hanya bisa diisi lewat API, jadi reminder `due_soon` selalu jatuh pada jam default board (08:00) dan deadline "besok 14:00" tidak pernah dihormati. Nonaktif sampai ada due date, dengan tombol Clear.
+- **Tandai satu notifikasi sebagai dibaca** di halaman notifikasi (`POST /api/notifications { ids }` — sebelumnya hanya "Mark all as read"), lengkap dengan tombol per item yang disabled saat proses.
+- **Judul task di inbox notifikasi kini tautan ke task-nya** (`/boards/:id?task=:taskId`). `GET /api/notifications` ikut mengembalikan `boardId`; task yang sudah dihapus tidak ditautkan.
+
 ### Fixed
+
+- **Override lead time terhapus setiap kali hanya toggle lain yang diubah**: `PATCH /api/tasks/:id/reminders` memaksa `leadMinutes: body.leadMinutes ?? null`, jadi menyalakan *Mute* atau *Remind on start* tanpa menyertakan `leadMinutes` selalu menulis `NULL` dan membuang override. Kini field diteruskan apa adanya (`undefined` = jangan diubah, `null` eksplisit = hapus override).
+- **`PATCH /api/tasks/:id/schedule` menghapus tanggal pada update sebagian**: `body.startDate ?? null` membuat request yang hanya membawa `dueTime` (atau hanya `dueDate`) menulis `NULL` ke field yang tidak dikirim. Kini `undefined` tidak mengubah apa pun.
+- **`leadMinutes` negatif diterima**: nilai seperti `-90` menjadwalkan reminder *setelah* deadline. Kini ditolak `400` bila bukan bilangan bulat non-negatif.
 - **Hapus kolom yang berisi task selalu gagal dari UI**: menu kolom memanggil `DELETE /api/statuses/:id` tanpa `?moveTo=`, sehingga API menolak dengan `409 This column holds N tasks` dan tidak ada cara menempuh jalan keluar — kolom berisi task praktis tidak bisa dihapus. Dialog hapus kini menampilkan dropdown kolom tujuan, tombol konfirmasi tetap disabled sampai tujuan dipilih, task dipindahkan (tidak pernah dihapus bersama kolom), dan bila board hanya punya satu kolom muncul pesan agar menambah kolom dulu.
+
+### Tests
+
+- **`reminders.test.ts` +4**: override lead time per task diutamakan atas setelan board, `0` diperlakukan sebagai override (bukan "belum diatur"), override berlaku juga untuk `start_soon`, dan tetap utuh ketika task di-mute. Sebelumnya tidak ada satu pun test untuk jalur override padahal itu inti setelan per task. Total **56 test**.
+
+### Docs
+
+- **`requirements.md` dan `architecture.md` tidak lagi kerangka kosong.** Keduanya berhenti di stub sejak commit awal `1e2388b`: tabel komponen tanpa isi dan daftar requirement kosong. Kini keduanya memetakan sistem yang benar-benar ada (17 tabel, 33 route API, alur reminder end-to-end), masing-masing dengan rujukan berkas sebagai bukti.
+- **PRD yang dirujuk puluhan titik di kode dinyatakan hilang, bukan dibiarkan menggantung.** README menyebut "PRD v1.2 (`01-documents/PRD-todo-gantt.md`)" padahal berkas itu tidak ada di filesystem maupun riwayat git. `requirements.md` sekarang menyatakan asal-usulnya secara terbuka — direkonstruksi dari kode dan tes, nomor requirement (`F-4.3`, `§6.3`) dipertahankan agar rujukan di kode tetap bisa ditelusuri — dan menegaskan bahwa temuan PRD asli harus **menggantikan**, bukan digabung.
+- **`runbooks/deployment.md` diperbaiki: sebelumnya menyesatkan.** Runbook lama menyuruh `make deploy`, padahal target itu hanya mencetak alamat server yang salah (aplikasi ini tidak berjalan di server itu; deploy sebenarnya ke Cloudflare Workers lewat CI). Kini menjelaskan alur sebenarnya (CI → migrate → deploy), cara memeriksa rilis, dan rollback.
+- **`Makefile` tidak lagi berisi target palsu.** `make dev/test/lint/deploy` hanya `echo` sehingga selalu "berhasil" tanpa melakukan apa pun. Kini meneruskan ke script npm yang sebenarnya, ditambah `make check` (typecheck + lint + test), dan `make deploy` sengaja gagal dengan pesan yang mengarahkan ke CI.
+- **`runbooks/troubleshooting.md` diisi** dengan masalah nyata yang pernah terjadi (origin better-auth, hapus kolom berisi task, OOM lint) beserta penyebab dan solusinya.
 
 ### Changed
 - **Dialog "Edit board" dan panel "Task detail" kini bisa ditutup dengan Escape** dan ditandai `role="dialog"` / `aria-modal` — sebelumnya hanya `ConfirmDialog` yang punya, sehingga dua dialog terbesar tidak terbaca sebagai dialog oleh screen reader dan mengharuskan klik mouse.

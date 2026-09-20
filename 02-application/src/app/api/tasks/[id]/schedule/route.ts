@@ -14,9 +14,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await req.json();
 
     const task = await updateTaskSchedule(db, session.user.id, id, {
-      startDate: body.startDate ?? null,
-      dueDate: body.dueDate ?? null,
-      dueTime: body.dueTime ?? null,
+      // `undefined` = leave unchanged, explicit `null` = clear. Passing `?? null`
+      // would wipe the dates on a partial update that only carries dueTime.
+      startDate: body.startDate,
+      dueDate: body.dueDate,
+      dueTime: body.dueTime,
     });
 
     return NextResponse.json({ task });

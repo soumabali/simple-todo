@@ -246,6 +246,30 @@ curl -X PATCH https://todo.nexigo.my.id/api/v1/todos/55d085df-... \
 
 Mengubah `dueDate` otomatis menjadwalkan ulang reminder task tersebut.
 
+#### Reminder per todo
+
+`PATCH /todos/:id` juga menerima empat field reminder per task, jadi integrasi
+tidak perlu menyentuh endpoint sesi:
+
+- `dueTime` — `"HH:mm"` atau `null`. Menentukan jam deadline; tanpa ini reminder
+  `due_soon` jatuh pada `defaultTime` di setelan notifikasi (bawaan `08:00`).
+- `remindOnStart` — boolean, kirim reminder saat `startDate` tiba.
+- `remindLeadMinutes` — bilangan bulat ≥ 0 atau `null`. `null` berarti ikut
+  setelan board; `0` berarti tepat pada deadline (bukan "belum diatur").
+- `remindersMuted` — boolean, matikan seluruh reminder untuk task ini.
+
+```bash
+# deadline 25 Sep 14:00, ingatkan 90 menit sebelumnya
+curl -X PATCH https://todo.nexigo.my.id/api/v1/todos/55d085df-... \
+  -H "Authorization: Bearer ***" \
+  -H 'Content-Type: application/json' \
+  -d '{"dueTime":"14:00","remindLeadMinutes":90}'
+```
+
+Field yang tidak disertakan tidak diubah — mengirim `{"remindersMuted":true}`
+tidak akan menghapus `remindLeadMinutes` yang sudah diatur. Mengirim `null`
+secara eksplisit yang menghapus override.
+
 ---
 
 ### `DELETE /todos/:id` — hapus todo

@@ -2,7 +2,12 @@
 
 > Status: `draft` | Tipe: `web` | Dibuat: 2026-09-10
 
-**FlowBoard** — aplikasi TODO berbasis kanban (gaya Trello) dengan Gantt chart interaktif dan pengingat push browser. Diimplementasikan sesuai PRD v1.2 (`01-documents/PRD-todo-gantt.md`).
+**FlowBoard** — aplikasi TODO berbasis kanban (gaya Trello) dengan Gantt chart interaktif dan pengingat push browser. Requirement dan arsitektur ada di `01-documents/requirements.md` dan `01-documents/architecture.md`.
+
+> **Catatan:** PRD asli ("v1.2") tidak pernah ada di repositori ini, sementara
+> ~35 baris komentar kode masih merujuk nomornya (`PRD §6.3`, `PRD F-4.3`, …).
+> `requirements.md` merekonstruksi requirement tersebut dari kode dan tes,
+> dengan nomor yang dipertahankan agar rujukan tetap bisa ditelusuri.
 
 ## Ringkasan
 

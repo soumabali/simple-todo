@@ -19,6 +19,7 @@ export type BoardData = {
     dueTime: string | null;
     remindOnStart: boolean;
     remindersMuted: boolean;
+    remindLeadMinutes: number | null;
     progress: number;
     position: string;
     completedAt: string | null;

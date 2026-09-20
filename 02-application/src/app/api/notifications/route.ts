@@ -40,20 +40,21 @@ export async function GET(req: NextRequest) {
     const hasMore = list.length > limit;
     const rows = hasMore ? list.slice(0, limit) : list;
 
-    // Join task titles.
+    // Join task titles (and board id, so the inbox can deep link into a board).
     const taskIds = [...new Set(rows.map((r) => r.taskId))];
-    const taskMap = new Map<string, string>();
+    const taskMap = new Map<string, { title: string; boardId: string }>();
     if (taskIds.length) {
       const ts = await db.query.tasks.findMany({
         where: (t, { inArray: ia }) => ia(t.id, taskIds),
         columns: { id: true, title: true, boardId: true },
       });
-      for (const t of ts) taskMap.set(t.id, t.title);
+      for (const t of ts) taskMap.set(t.id, { title: t.title, boardId: t.boardId });
     }
 
     const enriched = rows.map((r) => ({
       ...r,
-      taskTitle: taskMap.get(r.taskId) ?? "(deleted task)",
+      taskTitle: taskMap.get(r.taskId)?.title ?? "(deleted task)",
+      boardId: taskMap.get(r.taskId)?.boardId ?? null,
     }));
 
     return NextResponse.json({
