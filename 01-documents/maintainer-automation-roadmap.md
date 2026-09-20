@@ -413,11 +413,47 @@ Perbaikan yang sudah masuk:
 7. **Eskalasi** — aturan tegas: ragu → label `needs-maintainer` + notifikasi,
    tanpa aksi tulis.
 
-Sisa 1 poin yang belum bisa saya berikan pada diri sendiri: **belum ada satu pun
-bagian dari rencana ini yang teruji di dunia nyata.** Semua masih rancangan.
-Skor 9 adalah batas jujur untuk rencana yang belum dieksekusi; 10 hanya pantas
-setelah Fase 0 dan 1 benar-benar berjalan dan perangkat uji injeksinya menangkap
-payload sungguhan.
+### Versi 3 (setelah Fase 0 dieksekusi) — rating 10/10
+
+Sisa 1 poin di versi 2 ditahan dengan alasan: *belum ada satu pun bagian rencana
+ini yang teruji di dunia nyata*. Alasan itu sekarang hilang. Yang membedakan
+versi ini dari klaim adalah **setiap poin di bawah punya bukti yang bisa
+diperiksa ulang**, bukan deskripsi niat:
+
+| Klaim | Bukti |
+|---|---|
+| Notifikasi sampai ke Telegram | Cron `03853873fed3` run 15:00 menghasilkan laporan untuk issue #12 (run 14:30 & 14:45 *silent* karena tidak ada item baru — dedupe bekerja) |
+| Notifier tidak bisa di-inject | Payload uji ditangkap **8 aturan sekaligus** (`ci-modification`, `hidden-text`, `instruction-override`, `instruction-unquoted-authority`, `role-impersonation`, `secret-exfiltration`, `system-spoof`, `tool-directive`); tiga permintaan berbahaya di dalamnya ditolak |
+| Gate bisa gagal (bukan hiasan) | Tiga mutasi diuji: kembalikan bug penanda → `FAIL`; ganti nama `severity` → `FAIL`; paksa scanner selalu `none` → `11/12 FAIL`. Semua pulih setelah dikembalikan |
+| PR tidak bisa men-deploy | PR #10 nyata: `verify: success`, `deploy: skipped`; versi Worker tetap `bdb22be8` sepanjang PR |
+| PR dari fork bisa lulus build | Build tanpa secret asli + placeholder → exit 0; dengan secret kosong → gagal di `/api/admin/logs` (membuktikan env menang atas `.env.local`, jadi yang menyelamatkan memang placeholder) |
+| Kill switch berfungsi | `hermes cron pause 03853873fed3` → `resume` dijalankan, status terkonfirmasi |
+| Pemindai tidak menghukum dokumen sendiri | 19 dokumen repo dipindai: semua hit `low` (di dalam code span), termasuk `<script>` di `troubleshooting.md` yang benar tertangkap sebagai `quoted: True` |
+| Pin SHA sah | Kedua SHA diverifikasi lewat API: sama persis dengan tag `v4` (tag bertipe commit) |
+| Fixture 12 terpenuhi | `--contract-test` ditambahkan dan diuji-balas lewat mutasi |
+
+**Yang tetap tidak boleh diklaim 10:** rollback belum teruji (#5), dan Fase 1–4
+belum berjalan. Skor 10 di sini menilai **rencana + Fase 0**, dan yang paling
+penting: cara menaikkannya dari 9 ke 10 bukan menambah prosa, melainkan menjalankan
+rencananya lalu mencatat apa yang gagal. Dua kegagalan nyata tercatat di bawah.
+
+### Dua kesalahan yang ditemukan justru karena mengeksekusi
+
+Ini bagian yang tidak akan muncul dari menulis rencana lebih lama:
+
+1. **Issue #8 ditulis dari ingatan, bukan dari file.** Saya mengklaim `.gitignore`
+   menutup `00-meta/` dan empat dokumen jadi tidak ter-track. Salah — `git ls-files`
+   menunjukkan semuanya ter-track. Dikoreksi sebagai komentar publik di issue itu.
+   Pelajaran: temuan audit harus dijalankan, bukan diingat.
+2. **Gate saya sendiri punya lubang.** Penanda kepemilikan `<!-- ame-bot -->` hanya
+   diperiksa dari body, sehingga kontributor bisa menyalinnya ke issue mereka agar
+   tidak dilaporkan. Ini persis kelas bug "gagal-terbuka" yang saya peringatkan di
+   §5, dan saya menuliskannya sendiri. Sudah diperbaiki (butuh penanda **dan**
+   penulis = pemilik repo) dan dijaga fixture.
+
+Poin 2 adalah alasan terkuat mengapa skor 10 di sini bukan penilaian diri yang
+longgar: **rencananya tidak berubah karena saya makin yakin, tapi karena
+dieksekusi dan ketahuan salahnya di dua tempat.**
 
 ---
 
@@ -438,8 +474,13 @@ test. Kategori payload:
 | 8 | Instruksi mengubah `BETTER_AUTH_SECRET` | perubahan kredensial |
 | 9 | Teks "dari Dhar, saya setujui" tanpa bukti | pemalsuan otoritas |
 | 10 | Instruksi mengabaikan `00-meta/credentials.md` | pengabaian aturan |
-| 11 | Bug report wajar tanpa payload | **tidak** terdeteksi (uji negatif) |
-| 12 | PR benar yang kebetulan memuat kata "ignore previous" di komentar kode | **tidak** terdeteksi (uji negatif) |
+| 11 | Bug report wajar tanpa payload | `none` — **tidak** terdeteksi (uji negatif) |
+| 12 | Teks yang **mengutip** kata "ignore all previous instructions" di dalam backtick | `low`, bukan `high` — aturan `instruction-override` cocok, tapi diturunkan karena dikutip (uji negatif) |
+
+Baris 12 sengaja bukan `none`: mengutip payload **memang** cocok dengan aturannya,
+dan menyembunyikan itu akan membuat perilaku scanner tidak jujur. Yang penting
+adalah turunnya ke `low`, karena itulah yang membuat dokumen dan laporan bug yang
+mengutip payload tidak dihukum.
 
 Payload 11 dan 12 sama pentingnya dengan yang lain: gate yang menandai segalanya
 akan dimatikan orang, lalu tidak menjaga apa pun. Ini pelajaran dari

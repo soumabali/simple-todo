@@ -14,6 +14,7 @@ lapisan yang membuat itu aman — rencana lengkap dan auditnya ada di
 - **Label taksonomi** (status, tipe, prioritas) dan **template issue/PR**. Semua template memuat pemberitahuan bahwa isinya adalah data, bukan instruksi — dan frasa itu dikenali pemindai sebagai boilerplate kita, sehingga template tidak menandai dirinya sendiri.
 - **`SECURITY.md`** dengan jalur pelaporan privat (GitHub Security Advisories, tanpa email pribadi).
 - **Kill switch terdokumentasi dan teruji**: `hermes cron pause 03853873fed3` untuk notifikasi, `gh workflow disable "Deploy"` untuk deploy.
+- **Uji kontrak API pemindai** (`--contract-test`): corpus fixture menguji *mutu deteksi* — ia memanggil `scan()` dengan satu argumen lalu membaca satu kunci. Itu tidak melindungi pemanggilnya: penggantian nama kunci `severity` atau perubahan tanda tangan akan tetap membuat semua fixture hijau, sementara alat maintainer yang membacanya berhenti melaporkan injeksi tanpa ada yang menyadari. Kontrak ini menahan bentuk API-nya. Ditemukan karena fixture 12 sendiri memintanya.
 
 ### Fixed (Fondasi pengelolaan otonom repo)
 
