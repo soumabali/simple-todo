@@ -58,6 +58,26 @@ Verifikasi fitur yang butuh sesi tidak bisa dilakukan tanpa kredensial
 production; pakai build produksi lokal (`npx next start -p 3000`) dengan
 database dev, bukan `npm run dev`, agar yang diuji adalah bundle yang sebenarnya.
 
+## Gate sebelum push
+
+Repo ini publik, jadi gate utamanya adalah scanner rahasia (`scripts/check-secrets.py`).
+Jalankan seluruh gate sekaligus:
+
+```bash
+cd 02-application && make check    # typecheck + lint + test + secret scan
+```
+
+CI menjalankan hal yang sama di job `verify`, tetapi **commit tetap bisa ter-push
+sebelum CI selesai**. Aktifkan penjaga lokal sekali per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`core.hooksPath` tidak ikut ter-version, jadi langkah ini perlu diulang di setiap
+clone baru. Setelah aktif, commit yang memuat bentuk kredensial ditolak di lokal;
+`git commit --no-verify` melewatinya bila yakin itu alarm palsu.
+
 ## Menjalankan E2E terhadap produksi
 
 `03-history/e2e-live.py` menguji produksi lewat HTTP API. **Skrip ini mengubah

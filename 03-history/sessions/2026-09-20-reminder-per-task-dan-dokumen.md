@@ -186,7 +186,7 @@ Setelah scanner dan `.gitignore` beres, saya menyisir lagi untuk pertanyaan yang
 belum diajukan: **apakah ada kredensial default yang diterbitkan repo ini?**
 Jawabannya ya — dua, dan yang satu serius:
 
-- `src/lib/auth.ts`: `process.env.BETTER_AUTH_SECRET ?? "dev-secret-change-me"`.
+- `src/lib/auth.ts`: `process.env.BETTER_AUTH_SECRET ?? <literal>`.
   Ini bukan kemudahan, melainkan kredensial terbit: secret itu **menandatangani
   cookie sesi**, jadi siapa pun yang membaca repo bisa membuat sesi admin yang
   valid untuk deployment mana pun yang lupa menetapkan environment-nya. Kini
@@ -198,7 +198,7 @@ Jawabannya ya — dua, dan yang satu serius:
   punya cara memverifikasi nilai produksi dari sini. Keberadaan = wajib,
   panjang = peringatan.
 - `src/db/seed.ts`, `05-config/.env.example`, `README.md`: password admin default
-  `Admin1234!`, terbit di tiga tempat. Seeding pertama tanpa override membuat
+  password admin default, terbit di tiga tempat. Seeding pertama tanpa override membuat
   akun admin dengan password yang bisa dibaca siapa saja. `SEED_ADMIN_PASSWORD`
   kini wajib dan dibaca **sebelum** menyentuh database (gagal cepat, bukan
   setengah jalan). Saya cek produksi: `admin@flowboard.local` + default itu →
@@ -219,6 +219,25 @@ Efek sampingnya terasa: scanner lalu menandai **prosa changelog saya sendiri**
 yang mengutip nilai lama. Itu benar — prosa tidak perlu menyalin literal
 kredensial, jadi kutipannya diganti `<literal>`.
 
+### Kegagalan CI yang saya sebabkan sendiri
+
+Commit `36234d5` **membuat CI merah** (`35493001348`): gate `check-secrets`
+menolak `03-history/sessions/2026-09-20-reminder-per-task-dan-dokumen.md:189`,
+karena prosa session note ini **mengutip** literal password/secret lama. Ironis
+dan instruktif: teks yang menjelaskan sebuah kebocoran ikut dianggap kebocoran.
+
+Akarnya bukan regex, tapi **proses**: saya menjalankan scan, lalu menulis lebih
+banyak prosa, lalu commit tanpa menjalankan scan lagi. Dua hal yang saya
+perbaiki:
+
+1. Semua literal lama di prosa diganti `<literal>` / deskripsi. Menyalin nilai
+   kredensial ke dalam dokumen tidak memberi nilai apa pun — pembaca hanya perlu
+   tahu *bentuk* polanya.
+2. **`.githooks/pre-commit`** menjalankan scanner yang sama dan menolak commit.
+   Diuji dengan menanam pelanggaran: commit ditolak (`exit 1`) dan `HEAD` tidak
+   bergerak. Ini menutup celah yang sebenarnya: CI memindai, tapi commit sudah
+   ter-push sebelum CI selesai.
+
 ## Kebersihan
 
 Fixture (user, board, task, dua notifikasi) dibuat lewat script `06-temp/*.tmp.ts`
@@ -230,7 +249,7 @@ bebas, working tree bersih sebelum commit.
 - Tidak ada item terbuka dari daftar ini. Audit fitur/UI (`e2e-report.md`) dan
   hygiene dokumen sudah tuntas.
 - **Catatan untuk sesi berikutnya:** `admin@flowboard.local` masih ada di
-  produksi dengan password yang tidak diketahui (default `Admin1234!` sudah
+  produksi dengan password yang tidak diketahui (default publik itu sudah
   ditolak `401`). Kalau perlu masuk sebagai admin, gunakan alur reset password
   admin alih-alih menebak.
 - Rotasi `BETTER_AUTH_SECRET` produksi bersifat opsional: nilainya **tidak

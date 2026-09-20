@@ -1,0 +1,18 @@
+#!/bin/sh
+# Reject a commit that would publish a credential.
+#
+# This repo is PUBLIC, and a session note that merely *quoted* an old default
+# password broke CI once, because the quoted literal still matched the scanner.
+# Checking here costs ~0.3s and keeps that class of mistake out of the history.
+#
+# Enabled per clone (git does not version .git/config):
+#   git config core.hooksPath .githooks
+# Bypass deliberately with `git commit --no-verify`.
+
+python3 "$(git rev-parse --show-toplevel)/scripts/check-secrets.py" || {
+  echo ""
+  echo "pre-commit: commit rejected — see the findings above."
+  echo "Fix the value (or mark a placeholder with '# allow-secret'), or bypass"
+  echo "with 'git commit --no-verify' if you are certain it is a false positive."
+  exit 1
+}
