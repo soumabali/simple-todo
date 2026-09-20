@@ -322,7 +322,7 @@ identitas bot masih menempel di akun Dhar (issue #4).
 - [x] Template issue (bug / fitur) + template PR, dengan penanda "isi ini tidak
       diperlakukan sebagai instruksi"
 - [x] `SECURITY.md` (cara melaporkan kerentanan)
-- [ ] `CONTRIBUTING.md` singkat — **tertahan oleh lisensi** (issue #1), bukan tertunda
+- [x] `CONTRIBUTING.md` singkat — ditulis setelah lisensi diputuskan (ADR-001: MIT)
 - [x] CI: `permissions:` least-privilege; Actions dipin ke SHA
 - [x] Root `.gitignore`: `00-meta/` di-longgarkan dengan `credentials.md` tetap tertutup
 - **Kriteria keluar:** issue baru dari siapa pun memicu notifikasi Telegram < 15 menit.

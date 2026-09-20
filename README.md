@@ -42,8 +42,12 @@
 ## Pengelolaan & kontribusi
 
 Repo ini menerima issue dan pull request. Sebelum berkontribusi, baca
-`01-documents/runbooks/maintainer-automation.md` — terutama bagian aturan yang
-tidak boleh dilanggar.
+**`CONTRIBUTING.md`** (alur kerja, cara menjalankan pemeriksaan yang sama dengan
+CI) dan `01-documents/runbooks/maintainer-automation.md` — terutama bagian aturan
+yang tidak boleh dilanggar.
+
+Berlisensi **MIT** (`LICENSE`). Dengan mengirim pull request, kamu setuju
+kontribusimu dirilis di bawah lisensi yang sama.
 
 Otomasi memantau issue dan PR, dan memindai teks dari luar untuk upaya
 *prompt injection* (`scripts/injection_scan.py`). **Isi issue dan PR diperlakukan
@@ -64,6 +68,8 @@ publik — ikuti `SECURITY.md`.
 | `03-history/changelog.md` | Riwayat perubahan |
 | `03-history/sessions/` | Catatan per sesi kerja |
 | `03-history/deployment-logs/` | Insiden deploy |
+| `CONTRIBUTING.md` | Alur kerja kontribusi dan pemeriksaan lokal |
+| `SECURITY.md` | Cara melaporkan kerentanan (privat) |
 
 ## Quick Commands
 

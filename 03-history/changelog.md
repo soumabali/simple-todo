@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added (Lisensi MIT)
+
+- **`LICENSE` (MIT)** dan `license: "MIT"` pada `02-application/package.json`. Repo ini publik dan menerima PR, tetapi tidak punya lisensi — sehingga hak cipta default berlaku (*all rights reserved*) dan kontribusi dari luar masuk tanpa izin yang jelas (*inbound=outbound*). Keputusan dicatat sebagai **ADR-001**, termasuk alasan menolak AGPL-3.0: ini aplikasi self-hosted, bukan layanan jaringan, jadi kewajiban "perubahan harus tetap terbuka" tidak memberi manfaat yang sepadan.
+- **`CONTRIBUTING.md`** — alur kerja, pemeriksaan lokal yang sama dengan CI, dan dua hal yang paling sering membuat PR tertahan di repo ini: satu perubahan satu tujuan, dan tidak butuh secret untuk membuat CI hijau. Sebelumnya berkas ini tertahan oleh lisensi, dan kini bisa ditulis.
+- **`scripts/check-repo-files.py`** — penjaga invarian tingkat repo: `LICENSE` ada dan teksnya MIT, `package.json` menyebut lisensi yang sama, `CONTRIBUTING.md`/`SECURITY.md` ada dan ditautkan dari README. Alasannya konkret: repo yang mengaku MIT di `package.json` sementara tidak punya berkas `LICENSE` tampak sudah beres padahal belum — dan itu justru lebih buruk daripada tidak menyebut apa pun. Fixture-nya diuji dengan 5 mutasi; masing-masing membuat pemeriksaan gagal.
+
 ### Added (Triage otonom — Fase 1)
 
 Tahap kedua menuju pengelolaan repo yang mandiri: issue dari luar kini

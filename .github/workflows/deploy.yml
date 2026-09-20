@@ -68,6 +68,12 @@ jobs:
       # close, no merge. That restriction is what makes an injected payload
       # harmless here, so it is tested rather than assumed.
       - run: python3 ../scripts/triage-issues.py --self-test
+      # Repo-level invariants: LICENSE present and agreeing with package.json,
+      # CONTRIBUTING/SECURITY present and linked from the README. A repo that
+      # advertises MIT in package.json while shipping no LICENSE looks settled
+      # and is not, which is exactly the kind of drift CI should catch.
+      - run: python3 ../scripts/check-repo-files.py --self-test
+      - run: python3 ../scripts/check-repo-files.py
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
       - run: npm run build
         env:
