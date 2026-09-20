@@ -63,6 +63,11 @@ jobs:
       # maintainer tool into one that reports nothing.
       - run: python3 ../scripts/injection_scan.py --contract-test
       - run: python3 ../scripts/notify-issues.py --self-test
+      # Triage writes labels, so its fixtures also assert that the only write it
+      # can issue is adding a label inside its own namespace -- no comment, no
+      # close, no merge. That restriction is what makes an injected payload
+      # harmless here, so it is tested rather than assumed.
+      - run: python3 ../scripts/triage-issues.py --self-test
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
       - run: npm run build
         env:

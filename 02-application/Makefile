@@ -37,6 +37,7 @@ maintainer-tools: secrets
 	@python3 ../scripts/injection_scan.py --self-test
 	@python3 ../scripts/injection_scan.py --contract-test
 	@python3 ../scripts/notify-issues.py --self-test
+	@python3 ../scripts/triage-issues.py --self-test
 
 # Manual deploy is intentionally NOT provided: CI runs verify → migrate → deploy
 # on every push to main. See 01-documents/runbooks/deployment.md.

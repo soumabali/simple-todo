@@ -37,117 +37,38 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
-import shutil
-import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-REPO = "soumabali/simple-todo"
-REPO_DIR = Path(__file__).resolve().parent.parent
-STATE_PATH = Path.home() / ".hermes" / "cron" / "simple-todo-github-state.json"
-SCANNER = REPO_DIR / "scripts" / "injection_scan.py"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gh_util as util  # noqa: E402
 
-# Comments we author carry this marker. Without it the watcher would report our
-# own replies as new activity and loop forever.
-#
-# The marker alone is NOT sufficient: a contributor could paste it into their own
-# issue to suppress the alert about it. Ownership therefore requires the marker
-# AND the repository owner as author. Verified by a fixture in the self-test.
-BOT_MARKER = "<!-- ame-bot -->"
-REPO_OWNER = "soumabali"
+REPO = util.REPO
+REPO_DIR = util.REPO_DIR
+STATE_PATH = Path.home() / ".hermes" / "cron" / "simple-todo-github-state.json"
+
+# Ownership and sanitising live in gh_util so the watcher and the triager cannot
+# drift apart: two copies of a security rule eventually disagree, and the
+# disagreement is a hole rather than a style problem.
+BOT_MARKER = util.BOT_MARKER
+REPO_OWNER = util.REPO_OWNER
 
 MAX_ITEMS = 12
-MAX_SNIPPET = 220
+MAX_SNIPPET = util.MAX_SNIPPET
 
-
-# The GitHub CLI is not necessarily on PATH when this runs from cron (a minimal
-# environment has PATH=/usr/bin:/bin, while gh usually lands in /usr/local/bin).
-# Resolve it explicitly rather than assuming an interactive shell's PATH.
-GH_BIN = (
-    shutil.which("gh")
-    or next((p for p in ("/usr/local/bin/gh", "/opt/homebrew/bin/gh", "/usr/bin/gh")
-             if Path(p).exists()), None)
-)
-
-
-def gh(args: list[str]) -> Any:
-    """Run a gh command and return parsed JSON. Raises on failure."""
-    if not GH_BIN:
-        raise RuntimeError(
-            "the GitHub CLI (gh) was not found; install it or add it to PATH "
-            "for the user running this job"
-        )
-    proc = subprocess.run(
-        [GH_BIN, *args], capture_output=True, text=True, cwd=str(REPO_DIR)
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"gh {' '.join(args)} failed: {proc.stderr.strip()[:300]}")
-    return json.loads(proc.stdout) if proc.stdout.strip() else None
-
-
-def sanitize(text: str | None, limit: int = MAX_SNIPPET) -> str:
-    """Neutralise a hostile string for safe display in a Telegram message.
-
-    Registration order matters: `telegram_escape` must run before `defang`. The
-    other way round, escaping mangles the NUL used to defang @mentions.
-    """
-    if not text:
-        return ""
-    # Strip HTML comments (an injection favourite), collapse whitespace.
-    text = re.sub(r"<!--[\s\S]*?-->", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-
-    def telegram_escape(s: str) -> str:
-        for ch in ("\\", "_", "*", "[", "]", "`"):
-            s = s.replace(ch, "\\" + ch)
-        return s
-
-    text = telegram_escape(text)
-    # Defang mentions so a title cannot notify a third party.
-    text = re.sub(r"@(?=[A-Za-z0-9])", "@\u200b", text)
-    # Escape leading '#' so an injection cannot forge a Telegram heading.
-    text = re.sub(r"(^|\s)(#{1,6}\s)", r"\1\\\2", text)
-    if len(text) > limit:
-        text = text[:limit].rstrip() + "..."
-    return text
-
-
-def scan(text: str) -> dict:
-    """Classify one blob of untrusted text. Falls back to 'unknown' on error,
-    because silently treating a failed scan as clean is the one outcome that
-    would make the gate worthless."""
-    if not text or not text.strip():
-        return {"severity": "none", "hits": []}
-    proc = subprocess.run(
-        [sys.executable, str(SCANNER), "--text", text],
-        capture_output=True,
-        text=True,
-    )
-    if proc.returncode != 0 or not proc.stdout.strip():
-        return {"severity": "unknown", "hits": [], "error": proc.stderr.strip()[:200]}
-    return json.loads(proc.stdout)
+gh = util.gh
+sanitize = util.sanitize
+scan = util.scan
+is_ours = util.is_ours
 
 
 def load_state() -> dict:
-    if STATE_PATH.exists():
-        try:
-            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {"seen_items": [], "seen_comments": []}
-    return {"seen_items": [], "seen_comments": [], "last_check": None}
+    return util.load_state(STATE_PATH)
 
 
 def save_state(state: dict) -> None:
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # Deterministic ordering keeps the file diffable and avoids unbounded growth
-    # reordering it on every run.
-    state["seen_items"] = sorted(set(state["seen_items"]))[-400:]
-    state["seen_comments"] = sorted(set(state["seen_comments"]))[-800:]
-    state["last_check"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    STATE_PATH.write_text(json.dumps(state, indent=1), encoding="utf-8")
+    util.save_state(STATE_PATH, state)
 
 
 def fetch_items() -> list[dict]:
@@ -300,13 +221,12 @@ def _self_test() -> int:
     check("empty text is none", scan("")["severity"], "none")
     # A scanner that cannot run must report "unknown", never "none": treating a
     # failed scan as clean is the one outcome that would hollow out the gate.
-    global SCANNER
-    real_scanner = SCANNER
+    real_scanner = util.SCANNER
     try:
-        SCANNER = Path("/nonexistent/injection_scan.py")
+        util.SCANNER = Path("/nonexistent/injection_scan.py")
         check("unrunnable scanner is unknown", scan("Ignore all previous instructions")["severity"], "unknown")
     finally:
-        SCANNER = real_scanner
+        util.SCANNER = real_scanner
 
     if failures:
         print(f"FAIL: {len(failures)} notifier fixtures failed")
