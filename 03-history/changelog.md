@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Hapus kolom yang berisi task selalu gagal dari UI**: menu kolom memanggil `DELETE /api/statuses/:id` tanpa `?moveTo=`, sehingga API menolak dengan `409 This column holds N tasks` dan tidak ada cara menempuh jalan keluar — kolom berisi task praktis tidak bisa dihapus. Dialog hapus kini menampilkan dropdown kolom tujuan, tombol konfirmasi tetap disabled sampai tujuan dipilih, task dipindahkan (tidak pernah dihapus bersama kolom), dan bila board hanya punya satu kolom muncul pesan agar menambah kolom dulu.
+
+### Changed
+- **Dialog "Edit board" dan panel "Task detail" kini bisa ditutup dengan Escape** dan ditandai `role="dialog"` / `aria-modal` — sebelumnya hanya `ConfirmDialog` yang punya, sehingga dua dialog terbesar tidak terbaca sebagai dialog oleh screen reader dan mengharuskan klik mouse.
+
 ### Added (Profil, notifikasi, modal konfirmasi)
 - **Halaman profil** (`/settings/profile`, U8): user dapat mengganti nama tampilan dan timezone sendiri. Timezone divalidasi lewat `Intl` — bukan kosmetik, karena seluruh perhitungan reminder (jam default, quiet hours, "due today") memakai zona ini. Ada saran otomatis dari zona browser, tombol Reset, dan tautan cepat ke ganti password / setelan notifikasi / API keys. Email dan role tetap dikelola admin.
 - **`GET`/`PATCH /api/settings/profile`**: endpoint sesi untuk membaca dan memperbarui nama + timezone; menolak timezone tak dikenal (`400`), nama kosong/terlalu panjang, dan body tanpa field yang bisa diubah.

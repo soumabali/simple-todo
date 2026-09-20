@@ -116,20 +116,30 @@ Commit `b480c2b` / `2a7e852`. Diverifikasi di browser produksi (0 JS error) + AP
 
 ## 4. UI/UX improvement (mempermudah pengguna)
 
+> **Status 2026-09-20 (lanjutan): U1–U10 semuanya sudah dikerjakan.** Bagian §3 di atas
+> (baris U1–U10) memuat bukti verifikasinya. Tabel di bawah ini adalah **temuan awal
+> saat audit** — dibiarkan sebagai catatan historis, bukan daftar tugas terbuka.
+>
+> Satu celah baru ditemukan & diperbaiki pada sesi ini: **hapus kolom yang berisi task
+> selalu gagal dari UI**, karena UI memanggil `DELETE /api/statuses/:id` tanpa
+> `?moveTo=`. API menjawab `409 This column holds N tasks`. UI kini menampilkan
+> dropdown tujuan pemindahan, dan men-disable tombol konfirmasi sampai kolom tujuan
+> dipilih (atau menampilkan pesan bila board hanya punya satu kolom).
+
 Ini bukan bug (fitur jalan), tapi peluang untuk membuat aplikasi lebih mudah & nyaman dipakai:
 
-| # | Area | Masalah saat ini | Saran perbaikan |
-|---|---|---|---|
-| U1 | **Label tidak bisa dipakai** | Label sudah bisa dibuat via API, tapi **tidak ada UI** untuk menambah/menampilkan label di task detail maupun board. `taskLabels` di-query tapi tidak dirender. Fitur "label" setengah jadi. | Tambahkan UI label di task detail (chip + picker), dan tampilkan chip label di kartu task. |
-| U2 | **Tidak ada feedback saat save task detail** | Autosave (`onBlur`/`onChange`) tidak menampilkan indikator "saved". User tidak tahu apakah perubahan tersimpan (apalagi saat gagal). | Tambahkan indikator "Saving… / Saved ✓ / Failed" kecil di drawer, dan tampilkan error bila mutation gagal. |
-| U3 | **Board tidak bisa di-edit/di-arsipkan/dihapus dari UI** | API mendukung PATCH (rename/archive) & DELETE board, tapi UI boards list hanya bisa **membuat** board. Tidak ada cara mengubah nama, deskripsi, warna, arsip, atau hapus board. | Tambahkan menu aksi di kartu board (rename, arsip, hapus dengan konfirmasi) — API sudah siap. |
-| U4 | **Kolom (status) tidak bisa di-rename/di-hapus/di-reorder dari UI** | API mendukung PATCH/DELETE/move status, tapi UI hanya bisa "+ Add column". | Tambahkan menu di header kolom: rename, hapus (dengan moveTo), geser urutan (drag header). |
-| U5 | **Tidak ada empty-state yang memandu di board** | Board kosong hanya menampilkan kolom kosong tanpa petunjuk. | Tambahkan hint di kolom kosong ("Drag tasks here" / "Add your first task"). |
-| U6 | **Search tidak punya keyboard shortcut nyata** | Placeholder menulis "Search tasks… (/ to focus)" tapi tidak ada listener untuk tombol `/`. | Implementasi global keydown `/` → fokus input search (1 baris). |
-| U7 | **Warna board/kolom terbatas & mapping rapuh** | Pilihan warna board hanya 7; mapping warna `sky`/`violet`/`slate` di UI board-view **tidak punya** var CSS (`--sky`, `--violet` dll tidak didefinisikan di `globals.css`), jadi warna selain 4 dasar akan jatuh ke fallback `var(--accent)` (indigo). | Definisikan var warna lengkap di `globals.css` (`--sky`, `--violet`, `--slate`, dst) atau batasi pilihan ke warna yang sudah ada var-nya. |
-| U8 | **Detail akun pengguna tidak bisa diedit sendiri** | Tidak ada halaman profil untuk ganti nama/email/timezone; user hanya bisa ganti password. | Tambah halaman profil sederhana (ganti nama, timezone) via endpoint `PATCH /api/auth/update-user` (better-auth) — opsional. |
-| U9 | **Notifikasi "Mark all as read" disabled saat 0 unread, tapi tidak ada indikator loading** | Minor. | (Tercakup di BUG-8; perbaiki path dulu.) |
-| U10 | **Konfirmasi destructive action tidak konsisten** | Delete task pakai `confirm()` native; delete board/kolom/user belum ada (karena belum ada UI). | Standarkan modal konfirmasi yang rapi (bukan `confirm()` browser). |
+| # | Area | Masalah saat ini | Saran perbaikan | Status |
+|---|---|---|---|---|
+| U1 | **Label tidak bisa dipakai** | Label sudah bisa dibuat via API, tapi **tidak ada UI** untuk menambah/menampilkan label di task detail maupun board. `taskLabels` di-query tapi tidak dirender. Fitur "label" setengah jadi. | Tambahkan UI label di task detail (chip + picker), dan tampilkan chip label di kartu task. | ✅ |
+| U2 | **Tidak ada feedback saat save task detail** | Autosave (`onBlur`/`onChange`) tidak menampilkan indikator "saved". User tidak tahu apakah perubahan tersimpan (apalagi saat gagal). | Tambahkan indikator "Saving… / Saved ✓ / Failed" kecil di drawer, dan tampilkan error bila mutation gagal. | ✅ |
+| U3 | **Board tidak bisa di-edit/di-arsipkan/dihapus dari UI** | API mendukung PATCH (rename/archive) & DELETE board, tapi UI boards list hanya bisa **membuat** board. Tidak ada cara mengubah nama, deskripsi, warna, arsip, atau hapus board. | Tambahkan menu aksi di kartu board (rename, arsip, hapus dengan konfirmasi) — API sudah siap. | ✅ |
+| U4 | **Kolom (status) tidak bisa di-rename/di-hapus/di-reorder dari UI** | API mendukung PATCH/DELETE/move status, tapi UI hanya bisa "+ Add column". | Tambahkan menu di header kolom: rename, hapus (dengan moveTo), geser urutan (drag header). | ✅ |
+| U5 | **Tidak ada empty-state yang memandu di board** | Board kosong hanya menampilkan kolom kosong tanpa petunjuk. | Tambahkan hint di kolom kosong ("Drag tasks here" / "Add your first task"). | ✅ |
+| U6 | **Search tidak punya keyboard shortcut nyata** | Placeholder menulis "Search tasks… (/ to focus)" tapi tidak ada listener untuk tombol `/`. | Implementasi global keydown `/` → fokus input search (1 baris). | ✅ |
+| U7 | **Warna board/kolom terbatas & mapping rapuh** | Pilihan warna board hanya 7; mapping warna `sky`/`violet`/`slate` di UI board-view **tidak punya** var CSS (`--sky`, `--violet` dll tidak didefinisikan di `globals.css`), jadi warna selain 4 dasar akan jatuh ke fallback `var(--accent)` (indigo). | Definisikan var warna lengkap di `globals.css` (`--sky`, `--violet`, `--slate`, dst) atau batasi pilihan ke warna yang sudah ada var-nya. | ✅ |
+| U8 | **Detail akun pengguna tidak bisa diedit sendiri** | Tidak ada halaman profil untuk ganti nama/email/timezone; user hanya bisa ganti password. | Tambah halaman profil sederhana (ganti nama, timezone) via endpoint `PATCH /api/auth/update-user` (better-auth) — opsional. | ✅ |
+| U9 | **Notifikasi "Mark all as read" disabled saat 0 unread, tapi tidak ada indikator loading** | Minor. | (Tercakup di BUG-8; perbaiki path dulu.) | ✅ |
+| U10 | **Konfirmasi destructive action tidak konsisten** | Delete task pakai `confirm()` native; delete board/kolom/user belum ada (karena belum ada UI). | Standarkan modal konfirmasi yang rapi (bukan `confirm()` browser). | ✅ |
 
 ---
 

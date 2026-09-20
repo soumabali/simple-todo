@@ -279,6 +279,7 @@ export function BoardView({
               canMoveLeft={i > 0}
               canMoveRight={i < data.statuses.length - 1}
               onMove={(dir) => moveColumn(status.id, dir)}
+              otherStatuses={data.statuses.filter((s) => s.id !== status.id)}
             />
           ))}
           <AddColumn boardId={data.board.id} />
@@ -445,6 +446,7 @@ function Column({
   canMoveLeft,
   canMoveRight,
   onMove,
+  otherStatuses,
 }: {
   status: Status;
   tasks: Task[];
@@ -455,6 +457,8 @@ function Column({
   canMoveLeft: boolean;
   canMoveRight: boolean;
   onMove: (dir: -1 | 1) => void;
+  /** Every other column on this board, as delete destinations. */
+  otherStatuses: Status[];
 }) {
   const { setNodeRef } = useSortable({ id: status.id });
   const qc = useQueryClient();
@@ -464,6 +468,9 @@ function Column({
   const [renaming, setRenaming] = useState(false);
   const [editName, setEditName] = useState(status.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Column that receives this column's tasks on delete (F-3.3). Without it the
+  // API rejects the delete, so a column holding tasks was previously undeletable.
+  const [moveTo, setMoveTo] = useState("");
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["board", boardId] });
 
@@ -498,10 +505,14 @@ function Column({
   });
 
   const removeColumn = useMutation({
-    mutationFn: () => api(`/api/statuses/${status.id}`, { method: "DELETE" }),
+    mutationFn: (target?: string) =>
+      api(`/api/statuses/${status.id}${target ? `?moveTo=${encodeURIComponent(target)}` : ""}`, {
+        method: "DELETE",
+      }),
     onSuccess: () => {
       invalidate();
       setConfirmDelete(false);
+      setMoveTo("");
     },
   });
 
@@ -658,15 +669,45 @@ function Column({
         title={`Delete column "${status.name}"?`}
         message={
           tasks.length > 0
-            ? `This column holds ${tasks.length} task(s). Delete it only if it's empty — move tasks out first.`
+            ? `This column holds ${tasks.length} task(s). Choose where they should go — they are never deleted with the column.`
             : "This cannot be undone."
         }
-        confirmLabel="Delete column"
+        confirmLabel={tasks.length > 0 ? "Move tasks & delete" : "Delete column"}
         danger
         busy={removeColumn.isPending}
-        onCancel={() => setConfirmDelete(false)}
-        onConfirm={() => removeColumn.mutate()}
+        confirmDisabled={tasks.length > 0 && !moveTo}
+        onCancel={() => {
+          setConfirmDelete(false);
+          setMoveTo("");
+        }}
+        onConfirm={() => removeColumn.mutate(tasks.length > 0 ? moveTo : undefined)}
       >
+        {tasks.length > 0 && otherStatuses.length > 0 && (
+          <div className="mb-3">
+            <label className="block text-sm mb-1" htmlFor={`move-to-${status.id}`}>
+              Move {tasks.length} task(s) to
+            </label>
+            <select
+              id={`move-to-${status.id}`}
+              className="input w-full"
+              value={moveTo}
+              onChange={(e) => setMoveTo(e.target.value)}
+            >
+              <option value="">Choose a column…</option>
+              {otherStatuses.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {tasks.length > 0 && otherStatuses.length === 0 && (
+          <div className="text-sm mb-3" style={{ color: "var(--danger)" }}>
+            This is the only column on the board — there is nowhere to move its tasks. Add another
+            column first.
+          </div>
+        )}
         {removeColumn.isError && (
           <div className="text-sm" style={{ color: "var(--danger)" }}>
             {(removeColumn.error as Error)?.message ?? "Could not delete the column."}

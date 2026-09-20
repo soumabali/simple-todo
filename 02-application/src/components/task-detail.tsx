@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { BoardData } from "@/app/(app)/boards/[id]/page";
@@ -105,6 +105,16 @@ export function TaskDetail({ data, taskId, onClose }: { data: BoardData; taskId:
     onSuccess: () => qc.invalidateQueries({ queryKey: ["board", data.board.id] }),
   });
 
+  // Close on Escape (matches ConfirmDialog). Declared before the early return
+  // so the hook order stays stable when the task disappears.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   if (!task) return null;
 
   const dateError = startDate && dueDate && startDate > dueDate;
@@ -115,7 +125,14 @@ export function TaskDetail({ data, taskId, onClose }: { data: BoardData; taskId:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.3)" }} onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      style={{ background: "rgba(0,0,0,0.3)" }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Task detail"
+    >
       <div
         className="w-full max-w-md h-full overflow-y-auto p-6"
         style={{ background: "var(--background)", borderLeft: "1px solid var(--card-border)" }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -275,11 +275,23 @@ function EditBoardDialog({
   const [description, setDescription] = useState(board.description ?? "");
   const [color, setColor] = useState(board.color);
 
+  // Close on Escape (matches ConfirmDialog).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.45)" }}
       onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit board"
     >
       <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-base font-bold mb-4">Edit board</h2>
