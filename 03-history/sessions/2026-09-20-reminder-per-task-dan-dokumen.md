@@ -238,6 +238,69 @@ perbaiki:
    bergerak. Ini menutup celah yang sebenarnya: CI memindai, tapi commit sudah
    ter-push sebelum CI selesai.
 
+## Rencana otonomi repo + audit plan
+
+Dhar membuka repo ini untuk issue dan PR publik, dan meminta saya mengelolanya
+otonom: notifikasi tiap ada issue baru, review semua yang masuk (termasuk
+memastikan tidak ada prompt injection), lalu integrasi → test → deploy sendiri.
+Semua catatan dan task harus hidup sebagai issue GitHub.
+
+Rencana + riset pro/kontra ada di `01-documents/maintainer-automation-roadmap.md`.
+Ringkas hasilnya:
+
+**Rating kondisi saat ini: 2/10.** Bukan karena aplikasinya buruk — gate test-nya
+8/10. Yang rendah adalah lapisan operasional publikasi: belum ada tempat untuk
+issue, tidak ada notifikasi, tidak ada pertahanan terhadap konten luar, karena
+repo memang belum pernah dibuka.
+
+**Rating plan versi pertama: 6/10 → direvisi ke 9/10.** Yang menahan versi pertama:
+saya mengabaikan identitas token (token ini milik `soumabali`, jadi setiap
+komentar otonom terbit **atas nama Dhar** — kalau injeksi berhasil, hasilnya
+bukan "bot salah", tapi "maintainer menyatakan"); lisensi tidak diperlakukan
+sebagai *prasyarat*; fixture injeksi tidak konkret; kill switch salah urutan
+(ditaruh di Fase 4 padahal otomasi pertama sudah menyala); tidak ada anggaran;
+tidak ada cara menarik komentar. Sisa 1 poin tidak saya berikan ke diri sendiri
+karena **belum ada satu pun bagian rencana itu yang teruji di dunia nyata**.
+
+**Yang dibangun di sesi ini (Fase 0, sebagian):**
+
+- `scripts/injection_scan.py` — 10 aturan, 12 fixture (10 jahat + 2 negatif).
+  Downgrade: payload yang hanya muncul di dalam backtick/*code fence* diturunkan
+  ke `low`, karena mengutip payload bukan mengeluarkan perintah. Terbukti
+  bekerja: memindai 19 dokumen repo sendiri hanya menghasilkan `low` (semua di
+  dalam code block), dan `<script>` di dalam backtick di `troubleshooting.md`
+  ikut tertangkap sebagai `quoted: True`.
+- `scripts/notify-issues.py` + cron tiap 15 menit (`03853873fed3`), **tanpa model**:
+  jalur deteksi yang tidak bisa dipengaruhi teks yang dilaporkannya.
+- Label taksonomi, template issue/PR, `SECURITY.md`, runbook maintainer.
+
+**Temuan yang paling penting:** `npm run build` **gagal tanpa
+`BETTER_AUTH_SECRET`** — dipicu `requireEnv` di module scope lewat
+`/api/admin/logs`. Karena PR dari fork tidak menerima secret repo, **setiap
+kontribusi dari luar akan selalu merah** tanpa placeholder. Ini mengejutkan:
+keamanan yang saya tambahkan di sesi sebelumnya hampir mematikan tujuan Dhar.
+Diperbaiki dengan placeholder build-only (`secrets.X || placeholder`).
+
+**Kesalahan saya di sesi ini:** saya menulis issue #8 mengklaim `.gitignore`
+menutup `00-meta/` dan tiga dokumen jadi tidak ter-track. **Salah.** Root
+`.gitignore` tidak pernah memuat aturan itu, dan kelima berkas ter-track
+(`git ls-files 00-meta/` menampilkan semuanya). Saya menulis dari ingatan tentang
+isi file, bukan dari membacanya — persis yang saya peringatkan ke diri sendiri di
+roadmap. Dikoreksi sebagai komentar di issue #8 dan ditutup sebagai *not planned*.
+Yang benar-benar ditemukan saat memverifikasi: `00-meta/credentials.md` ter-track
+tapi **tidak memuat secret apa pun** (328 byte, hanya penunjuk ke Obsidian Vault
+dengan tabel kosong) — aman, dan memang begitu desainnya.
+
+**Lubang yang saya temukan di kode sendiri:** penanda kepemilikan bot
+(`<!-- ame-bot -->`) hanya diperiksa dari body, sehingga kontributor bisa
+menyalinnya ke issue mereka agar tidak dilaporkan. Kini butuh penanda **dan**
+penulis = pemilik repo. Fixture regresinya diuji dengan mengembalikan bug-nya
+untuk memastikan ia benar-benar bisa gagal (mutasi → FAIL, pulih → OK).
+
+**Yang menunggu keputusan Dhar:** lisensi (menghalangi penerimaan PR),
+branch protection, metadata repo, dan identitas komentar otomasi. Semuanya
+terlacak sebagai issue #1–#4.
+
 ## Audit: apa yang belum dibuat
 
 Setelah gelombang keamanan selesai, saya mengaudit repo terhadap checklist rilis

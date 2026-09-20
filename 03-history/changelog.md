@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added (Fondasi pengelolaan otonom repo)
+
+Repo ini bersiap dibuka untuk issue dan pull request publik. Tahap ini membangun
+lapisan yang membuat itu aman — rencana lengkap dan auditnya ada di
+`01-documents/maintainer-automation-roadmap.md`, cara menghentikan otomasi ada di
+`01-documents/runbooks/maintainer-automation.md`.
+
+- **Pemindai prompt injection** (`scripts/injection_scan.py`) dengan 12 fixture payload. Teks dari luar (judul, isi, komentar) diklasifikasi sebelum dibaca agent. Payload disusun mengikuti pola yang **nyata berhasil** di "*Comment and Control*" (CSA, Apr 2026) dan Black Hat USA 2026 — di mana issue body dan PR title dipakai membuat agent GitHub membocorkan secret CI. Dua dari dua belas fixture adalah **uji negatif**: laporan bug wajar dan payload yang dikutip di dalam backtick tidak boleh ditandai. Gate yang menandai segalanya akan dimatikan orang, lalu tidak menjaga apa pun.
+- **Notifier issue & PR** (`scripts/notify-issues.py`) sebagai cron Hermes tiap 15 menit. Berjalan **tanpa model** — satu-satunya jalur yang tidak bisa dipengaruhi oleh teks yang dilaporkannya. Tidak membaca secret (memakai `gh` sendiri), tidak pernah menulis ke GitHub, dan mencetak laporan hanya bila ada hal baru. Teks yang ditampilkan dinetralkan: komentar HTML dibuang, markdown di-escape, `@mention` dipatahkan agar judul tidak bisa menandai orang.
+- **Label taksonomi** (status, tipe, prioritas) dan **template issue/PR**. Semua template memuat pemberitahuan bahwa isinya adalah data, bukan instruksi — dan frasa itu dikenali pemindai sebagai boilerplate kita, sehingga template tidak menandai dirinya sendiri.
+- **`SECURITY.md`** dengan jalur pelaporan privat (GitHub Security Advisories, tanpa email pribadi).
+- **Kill switch terdokumentasi dan teruji**: `hermes cron pause 03853873fed3` untuk notifikasi, `gh workflow disable "Deploy"` untuk deploy.
+
+### Fixed (Fondasi pengelolaan otonom repo)
+
+- **Setiap PR dari fork akan selalu merah tanpa ini.** `npm run build` memuat `src/lib/auth.ts`, yang memanggil `requireEnv("BETTER_AUTH_SECRET")` di *module scope*, sehingga build tanpa secret gagal di `Failed to collect page data for /api/admin/logs` (diverifikasi dengan `BETTER_AUTH_SECRET=''`). Karena PR dari fork **tidak menerima secret repo**, setiap kontribusi dari luar akan gagal CI karena alasan yang tidak ada hubungannya dengan kodenya. Kini ada placeholder build-only, dan secret asli tetap menang bila ada (`secrets.X || placeholder`). Placeholder itu bukan kredensial.
+- **`deploy.yml` tidak punya blok `permissions:`** — `GITHUB_TOKEN` mendapat scope default. Kini `contents: read` di tingkat workflow; setiap job menaikkan hanya yang benar-benar dibutuhkan.
+- **Actions dipasang pada tag mengambang** (`@v4`). Tag bisa digerakkan ke kode lain setelah review — persis mekanisme yang membuat `tj-actions/changed-files` dikompromikan (Maret 2025). Kini dipin ke SHA commit, diverifikasi lewat `git ls-remote`, bukan disalin dari tutorial.
+- **Langkah *Smoke test* deploy hanya `echo`** — selalu sukses, termasuk untuk Worker yang mengembalikan 500, dan rollback jadi tidak punya pemicu. Kini `GET /login` dan gagal bila statusnya bukan 200.
+- **Aturan `concurrency`**: satu run per ref; run yang tersalip dibatalkan alih-alih dibiarkan selesai dan berlomba dengan yang lebih baru.
+- **Lubang pada penanda kepemilikan bot**: kepemilikan ditentukan hanya dari penanda di body, sehingga kontributor bisa menyalin penanda itu ke issue mereka agar tidak dilaporkan. Kini memerlukan penanda **dan** penulisnya pemilik repo — bagian kedua tidak bisa dipalsukan. Ada fixture regresinya, dan fixture itu diuji dengan mengembalikan bug-nya untuk memastikan ia benar-benar bisa gagal.
+- **`gh` tidak selalu ada di PATH saat dijalankan dari cron** (`PATH=/usr/bin:/bin`, sedangkan `gh` di `/usr/local/bin`) → traceback. Kini diresolusi eksplisit, dan kegagalan dilaporkan satu baris, bukan traceback.
+
 ### Added (Kontrol reminder per task + jam jatuh tempo)
 
 - **Setelan reminder per task di panel task detail**: task kini punya tiga override yang selama ini hanya ada di API — *Mute reminders for this task*, *Remind me when the start date arrives*, dan *Lead time override (minutes)* (`PATCH /api/tasks/:id/reminders`). Sebelumnya tidak ada satu pun pemanggil dari UI, sehingga semua task terkunci pada setelan board: reminder task yang tidak penting tidak bisa dimatikan, dan lead time khusus task penting tidak bisa diatur. Kontrol dinonaktifkan bila task belum punya tanggal, dan tombol **Use default** mengembalikan override ke nilai board.

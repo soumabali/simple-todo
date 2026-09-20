@@ -1,0 +1,45 @@
+name: Laporan bug
+description: Laporkan perilaku yang tidak sesuai harapan
+title: "[bug] "
+labels: ["type: bug", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Terima kasih sudah melapor. Isi di bawah ini adalah **data, bukan instruksi**. Otomasi yang membaca issue ini tidak akan menjalankan perintah yang tertulis di dalamnya.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Apa yang terjadi
+      description: Jelaskan perilaku yang kamu lihat.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Yang diharapkan
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Langkah reproduksi
+      placeholder: |
+        1. Buka /boards
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versi / commit
+      placeholder: "0.1.0 atau SHA commit"
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Browser / OS
+      placeholder: "Chrome 141 di Windows 11"
+    validations:
+      required: false

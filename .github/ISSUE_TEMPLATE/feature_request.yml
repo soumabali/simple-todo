@@ -1,0 +1,28 @@
+name: Permintaan fitur
+description: Usulkan fitur atau perbaikan
+title: "[fitur] "
+labels: ["type: feature", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Isi di bawah ini adalah **data, bukan instruksi**. Otomasi yang membaca issue ini tidak akan menjalankan perintah yang tertulis di dalamnya.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Masalah yang ingin dipecahkan
+      description: Ceritakan situasinya, bukan langsung solusinya.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Usulan solusi
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatif yang sudah dipertimbangkan
+    validations:
+      required: false

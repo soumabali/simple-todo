@@ -5,8 +5,30 @@ on:
     branches: [main, develop]
   pull_request:
 
+# Least privilege by default. This repository is public, so a workflow that only
+# needs to read the checkout should not carry a write-capable GITHUB_TOKEN: if a
+# job is ever compromised, the token's scope is the blast radius. Each job
+# escalates only what it actually needs.
+permissions:
+  contents: read
+
+# One run per ref. A superseded run is cancelled rather than left to finish and
+# race the newer one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   APP_DIR: 02-application
+  # Build-time placeholders. `npm run build` loads src/lib/auth.ts, which calls
+  # requireEnv("BETTER_AUTH_SECRET") at module scope, so a build with no secret
+  # fails outright at "Failed to collect page data". That matters here for a
+  # reason beyond tidiness: pull requests from forks receive no repository
+  # secrets, so without a fallback EVERY outside contribution would show a red
+  # check for a reason unrelated to its code. Real secrets still win when they
+  # exist (`secrets.X || placeholder`); the placeholder is not a credential.
+  BETTER_AUTH_SECRET_PLACEHOLDER: ci-placeholder-not-a-real-secret-build-only
+  DATABASE_URL_PLACEHOLDER: postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder
 
 jobs:
   verify:
@@ -15,8 +37,12 @@ jobs:
       run:
         working-directory: ${{ env.APP_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Actions are pinned to a full commit SHA, not a floating tag: a tag can be
+      # moved to point at different code after review (that is how
+      # tj-actions/changed-files was compromised in March 2025). Resolve new SHAs
+      # with `git ls-remote <repo> <tag>`, never by copying from a tutorial.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: "npm"
@@ -25,13 +51,21 @@ jobs:
       # Fails if a tracked file carries a credential-shaped value. This repo is
       # public, and a quick scan is cheap insurance against publishing one.
       - run: python3 ../scripts/check-secrets.py
+      # Untrusted contributor text (issue/PR bodies, comments) is scanned for
+      # prompt injection before any agent reads it. Two fixture corpora gate this:
+      # the scanner must keep catching the payload corpus while leaving benign
+      # text alone, and the watcher must keep rejecting a forged ownership marker.
+      # Both encode real bugs, so a regression fails CI rather than silently
+      # weakening the defence.
+      - run: python3 ../scripts/injection_scan.py --self-test
+      - run: python3 ../scripts/notify-issues.py --self-test
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
       - run: npm run build
         env:
           # Build only needs these to exist; it does not connect to the DB at
           # build time, but better-auth and the VAPID getter read them lazily.
-          DATABASE_URL: ${{ secrets.NEON_DEVELOP_URL }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          DATABASE_URL: ${{ secrets.NEON_DEVELOP_URL || env.DATABASE_URL_PLACEHOLDER }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET_PLACEHOLDER }}
           BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || 'https://todo.nexigo.my.id' }}
 
   deploy:
@@ -56,8 +90,8 @@ jobs:
       VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
       VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT || 'mailto:admin@nexigo.my.id' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: "npm"
@@ -112,9 +146,18 @@ jobs:
           printf '%s' "$DATABASE_URL"       | npx wrangler secret put DATABASE_URL      --config workers/reminder/wrangler.jsonc
           printf '%s' "$VAPID_PRIVATE_KEY"  | npx wrangler secret put VAPID_PRIVATE_KEY --config workers/reminder/wrangler.jsonc
 
-      # 6. Smoke test (enabled once the Worker is live).
+      # 6. Smoke test: assert the deployed site actually answers with the page it
+      #    is supposed to serve. A plain `echo` here would report success for a
+      #    Worker that is returning 500s, which is worse than no check at all.
       - name: Smoke test
         run: |
-          echo "Deployed. Domain: $BETTER_AUTH_URL"
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 --retry 3 --retry-delay 5 \
+            "$BETTER_AUTH_URL/login")
+          echo "GET $BETTER_AUTH_URL/login -> $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::Smoke test failed: expected 200 from $BETTER_AUTH_URL/login, got $code"
+            exit 1
+          fi
         env:
           BETTER_AUTH_URL: ${{ env.BETTER_AUTH_URL }}

@@ -39,6 +39,17 @@
 | PWA | `02-application/public/` | `manifest.webmanifest`, `sw.js`, ikon |
 | Seed admin | `02-application/src/db/seed.ts` | `npm run db:seed` |
 
+## Pengelolaan & kontribusi
+
+Repo ini menerima issue dan pull request. Sebelum berkontribusi, baca
+`01-documents/runbooks/maintainer-automation.md` — terutama bagian aturan yang
+tidak boleh dilanggar.
+
+Otomasi memantau issue dan PR, dan memindai teks dari luar untuk upaya
+*prompt injection* (`scripts/injection_scan.py`). **Isi issue dan PR diperlakukan
+sebagai data, bukan instruksi.** Untuk kerentanan keamanan, jangan buka issue
+publik — ikuti `SECURITY.md`.
+
 ## Dokumentasi
 
 | Dokumen | Isi |
@@ -48,6 +59,8 @@
 | `01-documents/api.md` | **Public REST API v1** — API key, endpoint, contoh `curl` |
 | `01-documents/runbooks/deployment.md` | Deploy, gate sebelum push, E2E terhadap produksi |
 | `01-documents/runbooks/troubleshooting.md` | Masalah yang sudah pernah terjadi dan solusinya |
+| `01-documents/maintainer-automation-roadmap.md` | Roadmap pengelolaan otonom repo: fase, pro/kontra, batas otonomi merge |
+| `01-documents/runbooks/maintainer-automation.md` | **Kill switch**, kebijakan eskalasi, anggaran, cara menarik komentar |
 | `03-history/changelog.md` | Riwayat perubahan |
 | `03-history/sessions/` | Catatan per sesi kerja |
 | `03-history/deployment-logs/` | Insiden deploy |
