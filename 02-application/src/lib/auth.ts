@@ -10,6 +10,37 @@ import * as schema from "@/db/schema";
  * Role / ban / timezone / must-change-password are declared as additionalFields
  * on the `user` table AND already exist as columns in src/db/schema.ts.
  */
+
+/**
+ * Read a required secret from the environment.
+ *
+ * This repository is public, so a hardcoded fallback is not a convenience — it
+ * is a published credential. `BETTER_AUTH_SECRET` signs session cookies, so a
+ * known value lets anyone mint a valid session. A missing secret therefore
+ * fails loudly.
+ *
+ * A short-but-present secret only warns: better-auth itself treats <32 chars as
+ * a warning (`node_modules/better-auth/dist/context/create-context.mjs`), so
+ * throwing here could lock every user out of a running deployment over a value
+ * that already works. Presence is the hard requirement; length is advice.
+ */
+function requireEnv(name: string, recommendedLength: number): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(
+      `${name} is not set. Generate one with \`openssl rand -base64 48\` and set it ` +
+        `in .env.local (dev) or as a Wrangler/GitHub secret (deploy).`
+    );
+  }
+  if (value.length < recommendedLength) {
+    console.warn(
+      `[auth] ${name} is only ${value.length} characters; ` +
+        `${recommendedLength}+ is recommended. Rotate it if this is production.`
+    );
+  }
+  return value;
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(getDb(), {
     provider: "pg",
@@ -21,7 +52,7 @@ export const auth = betterAuth({
     },
   }),
 
-  secret: process.env.BETTER_AUTH_SECRET ?? "dev-secret-change-me",
+  secret: requireEnv("BETTER_AUTH_SECRET", 32),
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 
   emailAndPassword: {

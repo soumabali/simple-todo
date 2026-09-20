@@ -8,6 +8,12 @@ scanner is deliberately narrow: it looks for shapes that are never legitimate
 in a public repository, and it honours inline `# allow-secret` when the match
 is a documented placeholder.
 
+Two rounds of this scanner were written before it was trustworthy. The first
+missed `{"password": "..."}` and `ADMIN_PASSWORD = "..."`; the second missed
+`process.env.X ?? "literal"`, which is the shape that actually leaked a live
+BETTER_AUTH_SECRET. Each fix came from writing a probe file and watching the
+scanner fail to catch it — not from reading the regex.
+
 Usage:  python3 scripts/check-secrets.py [--root DIR]
 Exit:   0 clean, 1 findings.
 """
@@ -25,6 +31,11 @@ RULES = [
     ("cloudflare token", r"\b(?:v1\.0-[A-Za-z0-9_-]{20,}|[A-Za-z0-9_-]{40}\b(?=[^\n]*cloudflare))"),
     ("private key block", r"-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----"),
     ("vapid jwk private", r'"d"\s*:\s*"[A-Za-z0-9_\-]{30,}"'),
+    # `?? "..."` / `|| "..."` on a secret-named variable: the value becomes the
+    # live credential of any deployment that forgets to set the env var. This
+    # exact shape (a published BETTER_AUTH_SECRET) shipped once and the scanner
+    # missed it, so it gets its own rule.
+    ("insecure secret fallback", r"""(?<![A-Za-z0-9])(?:secret|password|passwd|pwd|api_?key|token|credential)s?\w*\s*(?:\?\?|\|\|)\s*['"]([^'"\n]{6,})['"]"""),
     ("hardcoded password", r"""(?<![A-Za-z0-9])(?:password|passwd|pwd)s?['"]?\s*[:=]\s*['"]([^'"\n]{8,})['"]"""),
     ("hardcoded secret literal", r"""(?:secret|api_?key|token|credential)s?['"]?\s*[:=]\s*['"]([^'"\n]{8,})['"]"""),
     ("credentialed url", r"\bpostgres(?:ql)?://[^\s:@/'\"]+:([^\s@'\"]{4,})@"),

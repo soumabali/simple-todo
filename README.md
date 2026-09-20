@@ -50,7 +50,9 @@ cp ../05-config/.env.example .env.local    # isi DATABASE_URL & BETTER_AUTH_SECR
 
 # Migrasi + seed admin pertama
 npm run db:migrate
-npm run db:seed          # admin@flowboard.local / Admin1234! (ubah via env)
+# SEED_ADMIN_PASSWORD punya default di repo ini: TIDAK ADA. Repo ini publik,
+# jadi password default akan menjadi kredensial yang terbit. Berikan sendiri:
+SEED_ADMIN_PASSWORD='<password kuat>' npm run db:seed
 
 # Dev server
 npm run dev              # http://localhost:3000
@@ -64,6 +66,7 @@ npm run build
 ## Catatan
 
 - Lihat `00-meta/` untuk mapping port, URL, dan credential.
+- **Tidak ada kredensial default, dan itu disengaja.** Repo ini publik: `BETTER_AUTH_SECRET` dan `SEED_ADMIN_PASSWORD` sama-sama wajib diberikan lewat environment dan gagal keras bila kosong. Sebelumnya keduanya punya fallback yang terbit — `BETTER_AUTH_SECRET` menandatangani cookie sesi, jadi nilai yang diketahui publik berarti siapa pun bisa membuat sesi yang valid.
 - Deploy: `.github/workflows/deploy.yml` (otomatis saat push ke `main`). Runbook di `01-documents/runbooks/deployment.md`, insiden deploy di `03-history/deployment-logs/`.
 - Akun admin pertama dibuat oleh seed script; user lain dibuat admin via UI (`/admin/users`).
 - VAPID keys harus dibuat sekali (`npx @pushforge/builder generate-vapid-keys`) dan disimpan; rotasi mematikan semua subscription.

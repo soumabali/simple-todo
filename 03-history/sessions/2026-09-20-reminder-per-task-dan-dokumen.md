@@ -180,6 +180,45 @@ daripada tidak ada.
   menanam berkas scratch lalu `git check-ignore`.
 - Email pribadi di `deploy-guide.md` + satu session note diganti deskripsi peran.
 
+### Gelombang kedua: kredensial *default* yang terbit
+
+Setelah scanner dan `.gitignore` beres, saya menyisir lagi untuk pertanyaan yang
+belum diajukan: **apakah ada kredensial default yang diterbitkan repo ini?**
+Jawabannya ya — dua, dan yang satu serius:
+
+- `src/lib/auth.ts`: `process.env.BETTER_AUTH_SECRET ?? "dev-secret-change-me"`.
+  Ini bukan kemudahan, melainkan kredensial terbit: secret itu **menandatangani
+  cookie sesi**, jadi siapa pun yang membaca repo bisa membuat sesi admin yang
+  valid untuk deployment mana pun yang lupa menetapkan environment-nya. Kini
+  `requireEnv` melempar bila kosong.
+  **Yang sengaja TIDAK saya lakukan:** melempar bila panjangnya <32. better-auth
+  sendiri hanya *memperingatkan* di bawah 32 (`create-context.mjs:44`), jadi
+  secret produksi bisa saja 8–31 karakter dan tetap bekerja — melempar di situ
+  akan mengunci semua user dari deployment yang sedang jalan, dan saya tidak
+  punya cara memverifikasi nilai produksi dari sini. Keberadaan = wajib,
+  panjang = peringatan.
+- `src/db/seed.ts`, `05-config/.env.example`, `README.md`: password admin default
+  `Admin1234!`, terbit di tiga tempat. Seeding pertama tanpa override membuat
+  akun admin dengan password yang bisa dibaca siapa saja. `SEED_ADMIN_PASSWORD`
+  kini wajib dan dibaca **sebelum** menyentuh database (gagal cepat, bukan
+  setengah jalan). Saya cek produksi: `admin@flowboard.local` + default itu →
+  `401`, jadi tidak ada kebocoran aktif.
+- `seed.ts` juga **mencetak** password ke stdout (`Admin login: … / …`). Output
+  `npm run db:seed` mudah tersalin ke issue atau chat; sekarang hanya nama
+  akunnya yang dicetak.
+
+**Scanner saya sendiri masih bocor untuk pola ini.** Versi sebelumnya bersih
+untuk `process.env.X ?? "literal"` — persis bentuk yang membuat
+`BETTER_AUTH_SECRET` terbit. Rule `insecure secret fallback` ditambahkan, lalu
+diuji dengan enam probe: dua bentuk bocor tertangkap, satu fallback non-secret
+(`process.env.X || "some-fallback-value"`) sengaja **tidak** ditandai supaya
+tidak jadi alarm palsu. Sekali lagi: ditemukan dengan menanam probe, bukan
+dengan membaca ulang regex.
+
+Efek sampingnya terasa: scanner lalu menandai **prosa changelog saya sendiri**
+yang mengutip nilai lama. Itu benar — prosa tidak perlu menyalin literal
+kredensial, jadi kutipannya diganti `<literal>`.
+
 ## Kebersihan
 
 Fixture (user, board, task, dua notifikasi) dibuat lewat script `06-temp/*.tmp.ts`
@@ -190,3 +229,10 @@ bebas, working tree bersih sebelum commit.
 
 - Tidak ada item terbuka dari daftar ini. Audit fitur/UI (`e2e-report.md`) dan
   hygiene dokumen sudah tuntas.
+- **Catatan untuk sesi berikutnya:** `admin@flowboard.local` masih ada di
+  produksi dengan password yang tidak diketahui (default `Admin1234!` sudah
+  ditolak `401`). Kalau perlu masuk sebagai admin, gunakan alur reset password
+  admin alih-alih menebak.
+- Rotasi `BETTER_AUTH_SECRET` produksi bersifat opsional: nilainya **tidak
+  pernah** terbit (yang terbit adalah *fallback* di kode, bukan secret yang
+  dipakai produksi). Rotasi akan mematikan semua sesi aktif.
