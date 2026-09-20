@@ -238,6 +238,59 @@ perbaiki:
    bergerak. Ini menutup celah yang sebenarnya: CI memindai, tapi commit sudah
    ter-push sebelum CI selesai.
 
+## Audit: apa yang belum dibuat
+
+Setelah gelombang keamanan selesai, saya mengaudit repo terhadap checklist rilis
+open-source (`open-source-project-cleanup/references/open-source-release-prep-checklist.md`)
+supaya pertanyaan "apakah masih ada yang kurang" dijawab dengan bukti, bukan
+perasaan. Hasilnya, dan ini penting: **repo ini sehat untuk aplikasinya, yang
+kurang adalah lapisan publikasinya.**
+
+**Sudah dikerjakan di sesi ini:**
+
+- README tidak menyebut **Public REST API v1** sama sekali di Ringkasan —
+  padahal fitur itu ada, sudah dipakai produksi, dan punya dokumen 420 baris
+  (`01-documents/api.md`). Fitur yang tidak bisa ditemukan dari README praktis
+  tidak ada. Ditambahkan ke daftar fitur + tabel "Dokumentasi".
+
+**Belum ada, dan sengaja TIDAK saya buat sendiri** (lihat alasan di bawah):
+
+| Berkas | Kenapa belum |
+|---|---|
+| `LICENSE` | **Ini keputusan, bukan kelalaian** — dari 19 repo `soumabali` (termasuk `vexa`, `mochi`, `timebook`, `membership`), **tidak satu pun** punya LICENSE (`license=NONE` di API GitHub). Menambahkannya mengubah status hukum repo secara sepihak. |
+| `SECURITY.md` | Tidak ada di repo mana pun Dhar. Butuh keputusan: ke mana laporan kerentanan dikirim (email pribadi? tidak?), dan berapa SLA respons. |
+| `CONTRIBUTING.md` | Repo ini **tanpa self sign-up** dan satu pengguna; belum ada kontributor. Menulis panduan kontribusi untuk kontributor yang tidak ada adalah dokumen kosong. |
+| `CODE_OF_CONDUCT.md` | Sama — hanya relevan kalau ada komunitas. |
+| Template issue/PR | Belum ada `.github/ISSUE_TEMPLATE/`. Berguna hanya kalau repo dibuka untuk kontribusi. |
+| Tag + GitHub Release | `package.json` masih `0.1.0` dan belum pernah di-tag. Release pertama harus diputuskan Dhar (versi + apakah repo ini memang untuk dipublikasikan). |
+
+**Terblokir (bukan belum dikerjakan):**
+
+- **Metadata repo kosong**: deskripsi, homepage, dan topics (`desc=null
+  topics=[] homepage=null`), padahal repo publik. `gh api -X PATCH` ditolak
+  `403 Resource not accessible by personal access token` — token fine-grained
+  tidak punya izin Administration. Hanya bisa diisi lewat UI GitHub Settings.
+
+**Diperiksa dan ternyata beres** (supaya tidak perlu diulang):
+
+- `api.md` **akurat**: 10 endpoint didokumentasikan = 10 handler di
+  `src/app/api/v1/` (`me` GET, `boards` GET, `todos` GET/POST, `todos/[id]`
+  GET/PATCH/DELETE, `todos/expiring` GET, `reminders` GET/POST). Tidak ada drift.
+- Semua env var yang dibaca kode ada di `.env.example` / `.env.production.example`.
+- Tidak ada `TODO`/`FIXME`/`HACK` di `src` atau `workers`.
+- Tidak ada requirement yang berstatus belum diimplementasi; `requirements.md`
+  tidak punya bagian "deferred".
+
+**`npm audit` menemukan 11 kerentanan (7 moderate, 4 high) — tapi tidak satu pun
+di jalur runtime.** Semuanya lewat tooling build: `wrangler` → `miniflare` →
+`sharp` (libheif), `drizzle-kit` → `esbuild`, dan `postcss` (yang masuk lewat
+`next`). Yang penting: `next` sendiri **tidak punya advisory** — ia "moderate"
+hanya karena membawa `postcss`; dan `wrangler` adalah devDependency yang tidak
+pernah ikut ter-bundle ke Worker. `npm audit fix` menawarkan `next@16.3.5`
+(breaking major) dan `wrangler@4.135`, jadi **tidak saya jalankan** — memperbaiki
+tooling rentan dengan upgrade major sebelum ada release itu tukar risiko tanpa
+manfaat. Dicatat untuk ditinjau saat naik versi.
+
 ## Kebersihan
 
 Fixture (user, board, task, dua notifikasi) dibuat lewat script `06-temp/*.tmp.ts`

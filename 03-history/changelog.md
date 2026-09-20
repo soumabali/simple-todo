@@ -35,6 +35,7 @@
 
 ### Docs
 
+- **README tidak lagi menyembunyikan dua hal**: API publik v1 (API key per user, scope `r`/`rw` — tidak disebut sama sekali di Ringkasan padahal sudah dipakai produksi dan punya dokumen 420 baris), dan peta dokumennya sendiri. Kini ada daftar fitur API dan tabel "Dokumentasi" yang menautkan requirement, arsitektur, `api.md`, runbook, changelog, dan deployment-logs.
 - **`06-temp/README.md` tidak lagi bertentangan dengan git.** Isinya "selalu boleh dihapus", padahal tanpa `.gitignore` di root isi folder itu justru bisa ter-commit. Sekarang aturannya ditegakkan oleh `.gitignore`, dan klaim itu benar.
 - **`03-history/deployment-logs/` terisi** — direktori ini kosong sejak awal. Kini berisi catatan dua kegagalan deploy produksi pertama (19 Sep) yang sebelumnya hanya tersimpan sebagai pesan commit: `Apply Neon policy` ditolak `HTTP 422` karena plan free membatasi branch yang boleh diproteksi, lalu `Deploy web Worker` gagal karena CI memakai Node 20 sementara `wrangler` 4.130 butuh ≥22. Masing-masing dengan gejala per-step, akar masalah, commit perbaikan, dan pelajarannya. Ada `README.md` yang menjelaskan konvensi + cara memeriksa status deploy.
 - **Runbook deployment kini menjelaskan cara membaca kegagalan**, bukan hanya alur sukses: step pertama yang merah adalah satu-satunya yang informasinya nyata (sisanya `skipped`), dan karena `migrate` berjalan sebelum `deploy`, kegagalan di tahap deploy meninggalkan skema yang sudah berubah dengan kode yang belum — keadaan setengah jalan, bukan sekadar "deploy gagal".

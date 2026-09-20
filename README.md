@@ -14,6 +14,7 @@
 - **Board privat per user**: buat/edit/arsipkan/hapus board, kolom (status) CRUD + urutan drag, task CRUD + drag antar kolom/posisi, prioritas, progres, label, checklist subtask.
 - **Jadwal**: setiap task punya `start_date` + `due_date` (inilah "target"-nya), menggerakkan bar Gantt dan penjadwalan pengingat.
 - **Pengingat browser push** (4 jenis: `start_soon`, `due_soon`, `due_today`, `overdue`) + PWA ter-install + pusat notifikasi in-app.
+- **Public REST API v1** dengan API key per user (scope `r` / `rw`) — untuk script, n8n, atau agent. Dokumentasi: `01-documents/api.md`.
 - **Dua peran**: `user` (board/task/jadwal/notifikasi) dan `admin` (kelola akun login, reset password, aktif/nonaktif, lihat activity log). Tanpa self sign-up.
 
 ## Arsitektur
@@ -37,6 +38,19 @@
 | Reminder worker | `02-application/workers/reminder/` | Cloudflare Worker terpisah |
 | PWA | `02-application/public/` | `manifest.webmanifest`, `sw.js`, ikon |
 | Seed admin | `02-application/src/db/seed.ts` | `npm run db:seed` |
+
+## Dokumentasi
+
+| Dokumen | Isi |
+|---------|-----|
+| `01-documents/requirements.md` | Requirement (rekonstruksi dari kode — lihat catatan di atas) |
+| `01-documents/architecture.md` | Arsitektur dan keputusan teknis |
+| `01-documents/api.md` | **Public REST API v1** — API key, endpoint, contoh `curl` |
+| `01-documents/runbooks/deployment.md` | Deploy, gate sebelum push, E2E terhadap produksi |
+| `01-documents/runbooks/troubleshooting.md` | Masalah yang sudah pernah terjadi dan solusinya |
+| `03-history/changelog.md` | Riwayat perubahan |
+| `03-history/sessions/` | Catatan per sesi kerja |
+| `03-history/deployment-logs/` | Insiden deploy |
 
 ## Quick Commands
 
