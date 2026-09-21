@@ -84,17 +84,50 @@ clone baru. Setelah aktif, commit yang memuat bentuk kredensial ditolak di lokal
 data** (membuat/menghapus user, reset password, mengedit board/task), jadi
 arahkan ke akun buangan — bukan data pengguna nyata.
 
+Karena produksi adalah satu-satunya lingkungan dengan Worker + Neon yang
+sebenarnya, akun buangan itu dibuat **di database produksi**. Pakai
+`scripts/e2e-provision.ts` — jangan buat manual, dan jangan pakai akun asli:
+
 ```bash
-cd 03-history
-E2E_ADMIN_EMAIL=... E2E_ADMIN_PASSWORD=... \
-E2E_USER_EMAIL=...  E2E_USER_PASSWORD=... \
-E2E_USER_NEW_PASSWORD=... \
+cd 02-application
+export DATABASE_URL_UNPOOLED="$(grep NEON_PRODUCTION_URL ~/.hermes/.env | cut -d= -f2- | tr -d '"' | sed 's/-pooler\././')"
+
+# 1) buat dua akun throwaway (admin + user), password acak, ditulis ke file 0600
+npx tsx scripts/e2e-provision.ts /tmp/e2e-creds.json
+
+# 2) jalankan harness — password dibaca dari file, bukan ditulis di baris perintah
+cd ../03-history
+E2E_ADMIN_EMAIL=e2e-admin@flowboard.test \
+E2E_USER_EMAIL=e2e-user@flowboard.test \
+E2E_USER_NEW_PASSWORD_SUFFIX=X9z \
+E2E_CREDS_FILE=/tmp/e2e-creds.json \
 E2E_CONFIRM=yes python3 e2e-live.py
+
+# 3) bersihkan (wajib — jangan tinggalkan akun di produksi)
+cd ../02-application
+npx tsx scripts/e2e-provision.ts --delete /tmp/e2e-creds.json
 ```
 
-Tanpa `E2E_CONFIRM=yes` skrip berhenti, dan itu disengaja: gerbang ini ada agar
-skrip tidak jalan karena salah tekan. Kredensial **hanya** dari environment —
-repo ini publik, jadi jangan pernah menuliskan nilai apa pun ke dalam berkasnya.
+Password tidak pernah dicetak oleh skrip mana pun. Tanpa `E2E_CONFIRM=yes`
+harness berhenti, dan itu disengaja: gerbang ini ada agar skrip tidak jalan
+karena salah tekan. Kredensial **hanya** dari environment — repo ini publik,
+jadi jangan pernah menuliskan nilai apa pun ke dalam berkas yang ter-track.
+
+`e2e-provision.ts` menolak menyentuh email di luar dua akun fixture-nya, jadi
+salah ketik argumen tidak bisa menghapus user nyata. Verifikasi:
+`--delete` dengan email asli → keluar dengan pesan penolakan.
+
+### Jebakan yang sudah memakan waktu (jangan diulang)
+
+- **Skema `public` memakai snake_case** (`email_verified`,
+  `must_change_password`, `user_id`, `created_at`). Database yang sama juga
+  punya skema `neon_auth` (camelCase) — sisa eksperimen Managed Better Auth yang
+  **tidak** dipakai aplikasi. Menulis ke tabel yang salah menghasilkan user yang
+  tidak bisa login.
+- **Hash password wajib dari `@better-auth/utils/password`.** Meniru dengan
+  `crypto.scryptSync` terlihat setara tapi **tidak**: better-auth memakai salt
+  16 byte sebagai **string hex**, bukan Buffer. Hasilnya `401
+  INVALID_EMAIL_OR_PASSWORD` untuk password yang baru saja kamu set.
 
 ## Rollback
 

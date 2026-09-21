@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Fixed (500 intermiten pada `/api/boards`)
+
+Ditemukan saat E2E penuh terhadap produksi, bukan dari membaca kode. Sekitar
+**5% page load board** gagal dengan `500 INTERNAL`, tanpa pola di log. Bukti
+lengkap: `03-history/e2e-report-2026-09-21.md`, issue #19, PR #18.
+
+- **Query `neon-http` menggantung 25–85 detik lalu melempar error**, padahal median request sehat adalah 1.2 detik. Dari `wrangler tail`: `wallTime` request yang gagal 39.6 s dan 85.4 s; request normal 1.5–3.3 s. Request lambat itu *adalah* request yang gagal, bukan dua populasi terpisah. Yang gagal termasuk query paling murah yang kita jalankan (`where false`).
+- **Bukan contention di kode kita.** 1/12 gagal pada request **berurutan** (satu per satu), 0/15 gagal pada **5 paralel** — kalau aplikasi penyebabnya, polanya akan terbalik. Ditambah query termurah pun bisa gagal → penyebab di lapisan koneksi (Neon pooler). Bukti edge-level: respons 500 yang lambat **tidak punya header `cf-ray`**.
+- **`src/lib/db-resilience.ts`** (baru): `withTimeout` membatasi satu percobaan, `withRetry` mengulang kegagalan transien maksimal 3× dengan backoff eksponensial, `isTransientDbError` memutuskan apa yang transien. Klasifikasinya **sengaja sempit**: `23xxx`/`42xxx` (unique violation, syntax error, integrity) **tidak** diulang — mengulang error deterministik melipatgandakan kerusakan dan menyembunyikan bug. Dipasang lewat `neonConfig.fetchFunction`, sehingga mencakup setiap query yang dibuat driver termasuk yang ditambahkan nanti.
+- **`errorResponse` menjawab `503 UPSTREAM_UNAVAILABLE` + `Retry-After: 2`** untuk kegagalan transien, bukan `500 INTERNAL`. Sebelumnya kegagalan dependensi tidak bisa dibedakan dari bug FlowBoard — baik oleh pengguna maupun oleh kita.
+- **Tes: 81 (sebelumnya 56).** 19 tes di `db-resilience.test.ts` + 6 di `api-error.test.ts`. Setiap tes baru menyebutkan mutasi yang membuatnya merah, dan mutasinya dijalankan: menghapus pemeriksaan `FATAL_SQLSTATES` → 2 tes merah; menghapus `Promise.race` timeout → tes hang merah; retry mengabaikan pemeriksaan transien → tes unique-violation merah; menghapus cabang 503 → 2 tes merah.
+- **Assertion E2E `6.2` menerima `500` sebagai lulus** (`st in (400, 409, 500)`). Itu justru defect BUG-10 sendiri, jadi test itu akan menerima bug-nya kembali. Kini wajib 400 + pesan jelas.
+- **Assertion E2E `4.8` hanya memeriksa `completedAt`**, tidak `progress` — padahal itulah BUG-9. Kini memeriksa keduanya.
+- **Kredensial E2E tidak lagi lewat argv.** `E2E_CREDS_FILE` membaca dari file 0600, karena env var password terlihat di `ps` dan shell history.
+- **`scripts/e2e-provision.ts`** menggantikan placeholder 4 baris, dengan penjaga yang menolak menghapus akun di luar dua fixture-nya (diverifikasi terhadap alamat asli: keluar dengan penolakan).
+
 ### Added (Lisensi MIT)
 
 - **`LICENSE` (MIT)** dan `license: "MIT"` pada `02-application/package.json`. Repo ini publik dan menerima PR, tetapi tidak punya lisensi — sehingga hak cipta default berlaku (*all rights reserved*) dan kontribusi dari luar masuk tanpa izin yang jelas (*inbound=outbound*). Keputusan dicatat sebagai **ADR-001**, termasuk alasan menolak AGPL-3.0: ini aplikasi self-hosted, bukan layanan jaringan, jadi kewajiban "perubahan harus tetap terbuka" tidak memberi manfaat yang sepadan.
