@@ -26,3 +26,7 @@ __pycache__/
 # --- local agent/tooling state ------------------------------------------------
 .claude/
 .hermes/
+
+# Mutation-testing scratch copies. A stray `scripts/*.py.bak` in a commit is how
+# an old version of a security-relevant tool ends up back in the tree.
+*.bak
