@@ -60,5 +60,10 @@
     "typescript": "^5",
     "vitest": "^3.2.7",
     "wrangler": "4.130.0"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.28"
+    }
   }
 }

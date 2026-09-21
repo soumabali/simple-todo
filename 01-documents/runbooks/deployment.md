@@ -20,6 +20,40 @@ mengungkap apa pun. Perhatikan juga bahwa `migrate` berjalan **sebelum**
 berubah sementara kode aplikasinya belum — keadaan setengah jalan yang perlu
 ditangani, bukan sekadar "deploy gagal".
 
+### PR yang hijau TIDAK berarti jalur deploy sehat
+
+Job `deploy` memakai `if: github.event_name == 'push'`. Pada PR ia **di-skip**,
+dan run-nya tetap `success`. Jadi:
+
+- "CI hijau" pada PR adalah pernyataan tentang `verify`, **bukan** tentang rilis.
+- Satu-satunya cara menguji jalur deploy adalah push ke `main` — dan begitu
+  branch protection menyala, itu berarti merge.
+
+Ini pernah menutupi kegagalan selama ~30 jam: delapan jam kerja dengan beberapa
+PR hijau, lalu merge pertama langsung gagal di `deploy` karena
+`CLOUDFLARE_API_TOKEN` ditolak (`Invalid access token [code: 9109]`). Tidak ada
+satu pun sinyal sebelumnya, karena tidak ada yang menjalankan langkah itu.
+
+**Jangan pernah melaporkan "CI hijau" tanpa menyebut `deploy` di-skip.** Selisih
+antara keduanya pernah menahan perbaikan bug produksi tanpa ada yang tahu.
+
+**Cara memeriksa jalur deploy yang sebenarnya:**
+
+```bash
+# Deploy sungguhan terakhir — event=push, bukan pull_request
+gh run list --workflow=deploy.yml --event=push --limit 5 \
+  --json conclusion,headBranch,createdAt \
+  --jq '.[] | "\(.conclusion)  \(.headBranch)  \(.createdAt)"'
+
+# Versi yang BENAR-BENAR berjalan di produksi (bukan yang ada di main)
+cd 02-application && npx wrangler deployments status --name flowboard-web
+```
+
+Bandingkan `Created` pada versi aktif dengan tanggal merge terakhir. Kalau versi
+aktif lebih tua, **perbaikan yang sudah di-merge belum tayang** — apa pun status
+run-nya.
+
+
 Insiden nyata dan penyebabnya: `03-history/deployment-logs/`.
 
 ## Pre-deploy (cek lokal)
