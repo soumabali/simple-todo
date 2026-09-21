@@ -9,6 +9,14 @@ credentials are stored in the file. Required:
     E2E_USER_NEW_PASSWORD                    temp password for the change-password test
     E2E_CONFIRM=yes                          explicit go-ahead
 
+Preferred over E2E_ADMIN_PASSWORD / E2E_USER_PASSWORD / E2E_USER_NEW_PASSWORD:
+point E2E_CREDS_FILE at the JSON written by `02-application/scripts/e2e-provision.ts`.
+Passwords then never appear in the process table (`ps`), the shell history, or
+your terminal scrollback:
+
+    E2E_CREDS_FILE=/tmp/e2e-creds.json E2E_USER_NEW_PASSWORD_SUFFIX=X9z \
+      E2E_CONFIRM=yes python3 e2e-live.py
+
 WARNING: this script MUTATES the target database — it creates and deletes
 users, resets passwords, and edits boards/tasks. Point it at a throwaway
 account, never at real user data, and only ever against a host you are allowed
@@ -22,6 +30,26 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 ADMIN = {"email": os.environ.get("E2E_ADMIN_EMAIL", ""), "password": os.environ.get("E2E_ADMIN_PASSWORD", "")}
 USER  = {"email": os.environ.get("E2E_USER_EMAIL", ""),  "password": os.environ.get("E2E_USER_PASSWORD", "")}
 NEW_PASSWORD = os.environ.get("E2E_USER_NEW_PASSWORD", "")
+
+# Prefer the credentials file: it keeps the passwords out of argv. Anything on
+# the command line is visible to `ps` for every user on the box, and lands in
+# the shell history.
+_creds_file = os.environ.get("E2E_CREDS_FILE")
+if _creds_file:
+    if not ADMIN["email"] or not USER["email"]:
+        sys.exit("E2E_CREDS_FILE requires E2E_ADMIN_EMAIL and E2E_USER_EMAIL (the emails are not secrets).")
+    try:
+        _creds = json.load(open(_creds_file))
+    except Exception as e:
+        sys.exit(f"Cannot read E2E_CREDS_FILE={_creds_file}: {e}")
+    for _acct in (ADMIN, USER):
+        _entry = _creds.get(_acct["email"])
+        if not _entry or not _entry.get("password"):
+            sys.exit(f"{_acct['email']} not found in {_creds_file}. Run scripts/e2e-provision.ts first.")
+        _acct["password"] = _entry["password"]
+    # The change-password test needs a *different* password; derive one from the
+    # real one so it is still unique per run without being hardcoded.
+    NEW_PASSWORD = USER["password"] + os.environ.get("E2E_USER_NEW_PASSWORD_SUFFIX", "X9z")
 
 if os.environ.get("E2E_CONFIRM") != "yes":
     sys.exit(
@@ -229,6 +257,9 @@ record("4.7 move task to Done -> progress 100 + completedAt", st == 200 and js.g
 # move back out of done
 st, js, _ = c_admin.req("PATCH", f"/api/tasks/{task_a_id}/move", {"statusId": todo["id"], "prevPosition": None, "nextPosition": None})
 record("4.8 move out of Done -> completedAt null", st == 200 and js.get("task",{}).get("completedAt") is None, f"got {st} completedAt={js.get('task',{}).get('completedAt')}")
+# BUG-9 was "progress stays 100 after leaving Done". The original 4.8 checked only
+# completedAt, so the actual defect slipped past it. Assert the progress too.
+record("4.8b move out of Done -> progress reset to 0", st == 200 and js.get("task",{}).get("progress") == 0, f"got {st} progress={js.get('task',{}).get('progress')}")
 
 # schedule
 st, js, _ = c_admin.req("PATCH", f"/api/tasks/{task_b_id}/schedule", {"startDate": "2026-10-01", "dueDate": "2026-10-10"})
@@ -264,7 +295,11 @@ label = js.get("label", {})
 label_id = label.get("id")
 
 st, js, _ = c_admin.req("POST", f"/api/boards/{bid}/labels", {"name": "urgent", "color": "rose"})
-record("6.2 duplicate label -> error", st in (400, 409, 500), f"got {st}")
+record("6.2 duplicate label -> 400 (not 500)", st == 400, f"got {st}")
+# This assertion used to accept 500 as a pass (`st in (400, 409, 500)`). That was
+# exactly the defect: BUG-10 WAS a 500, and the fix changed it to 400 — so the
+# old assertion would have silently accepted the bug coming back.
+record("6.2b duplicate label message is helpful", "already exists" in json.dumps(js).lower(), f"{json.dumps(js)[:100]}")
 
 # ---------------- 7. GANTT ----------------
 section("7. GANTT")
