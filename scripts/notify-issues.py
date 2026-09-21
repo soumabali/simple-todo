@@ -262,6 +262,10 @@ def main() -> int:
         print(f"seen items : {len(state['seen_items'])}")
         print(f"seen comments: {len(state['seen_comments'])}")
         print(f"last check : {state.get('last_check')}")
+        # Surfaced here on purpose: `--status` is what someone runs while
+        # investigating, and it should not silently omit that automation is off.
+        halted = util.kill_switch_reason()
+        print(f"halted     : {halted or 'no'}")
         return 0
 
     if args.seed:
@@ -280,6 +284,12 @@ def main() -> int:
     report, state = build_report(state)
     save_state(state)
     if report:
+        # The report is delivered by the caller (cron) as a Telegram message, so
+        # silence here is what "halted" means in practice: no push goes out.
+        halted = util.kill_switch_reason()
+        if halted:
+            print(f"notify-issues: {halted} -- report suppressed")
+            return 0
         print(report)
     return 0
 
