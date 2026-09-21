@@ -2,6 +2,69 @@
 
 ## [Unreleased]
 
+### Fixed (deploy produksi mati ~30 jam — issue #22, PR #25)
+
+Produksi tetap di build `2026-09-20T08:10:29Z` selama ~30 jam, jadi perbaikan
+yang sudah di-*merge* **belum pernah tayang**. Dua cacat terpisah pada
+`.github/workflows/deploy.yml`:
+
+- **Job `deploy` di-skip pada `pull_request`, dan run-nya tetap `success`.**
+  Semua PR terlihat hijau di jalur yang tidak pernah men-deploy apa pun.
+  Kegagalannya hanya muncul saat push ke `main`.
+- **Tidak ada cara menjalankan deploy atas permintaan.** Setelah menambahkan
+  `workflow_dispatch` ternyata belum cukup — guard `if: event_name == 'push'`
+  juga men-SKIP run manual (run `35620508523`). Tombolnya ada, tapi tetap tidak
+  men-deploy.
+
+Verifikasi: dua run manual, **12/12 langkah sukses**. Produksi bergerak ke
+**`2026-09-21T15:59:16Z`**.
+
+**Pelajaran: "CI hijau" bukan bukti rilis jalan.** Job deploy yang di-skip tetap
+membuat run berstatus `success`.
+
+### Added (alat cek kesehatan produksi — PR #24)
+
+`scripts/check-production-health.py`, tiga mode: `edge` (hitung header
+`cf-ray`, bukan berapa yang 200), `analytics` (Workers analytics), `errors`
+(`Failed query` dari log Worker). Ditulis karena cara memeriksa produksi tadinya
+hanya potongan perintah ad-hoc, dan itu membuat kesimpulan mudah salah.
+
+Tiga kegagalan senyap yang ketemu saat menulisnya — semuanya jenis "output
+normal = kosong, jadi mati dan sehat terlihat identik":
+
+- `wrangler tail --format json` keluarannya **multi-baris**, bukan satu objek per
+  baris; parser per-baris menolak semua event lalu lapor "0 event".
+- `readline()` memblokir tanpa batas → skrip menggantung lewat jendelanya
+  (**terukur 172s untuk jendela 50s**).
+- `npx` → wrangler sebagai anak; `terminate()` parent meninggalkan cucu yang
+  memegang pipe.
+
+Terukur juga: `wrangler tail` butuh **~11.3s** untuk terhubung.
+
+### Catatan koreksi (500 intermiten pada `/api/boards`)
+
+Entri di bawah ditulis dari E2E `2026-09-21`. Sebagian kesimpulannya **perlu
+dikoreksi** — lihat `03-history/sessions/2026-09-22-deploy-mati-dan-koreksi-19.md`.
+
+Ringkasnya: ada **dua fenomena terpisah** yang tercampur.
+
+- **Kegagalan Neon nyata** — 14 baris `Failed query` pada `13:02`–`13:11Z`.
+  Berhenti tepat setelah deploy `15:59:16Z` tayang; nol error setelahnya sampai
+  log terakhir `18:57:57Z`. #18 memang tepat sasaran, tapi belum pernah live
+  karena deploy-nya mati.
+- **Timeout jalur penguji** dari mesin ini — sampai sekarang. Korelasi 14/14:
+  `code=000` selalu `cf-ray=NO`, `code=200` selalu `cf-ray=YES`. Artinya
+  permintaan **tidak sampai edge**.
+
+Konsekuensinya, bukti yang dikutip di entri bawah — "respons 500 yang lambat
+tidak punya `cf-ray`" — **tidak bisa dipakai untuk menyalahkan Neon**: header
+yang tidak ada itu justru penanda permintaan yang tidak sampai edge. Yang benar
+adalah klaim `wallTime` 39.6s/85.4s dari log Worker, karena itu berasal dari
+sisi Worker.
+
+#19 belum ditutup. Kriteria barunya: nol `Failed query` selama >= 24 jam sejak
+`2026-09-21T15:59:16Z`.
+
 ### Fixed (500 intermiten pada `/api/boards`)
 
 Ditemukan saat E2E penuh terhadap produksi, bukan dari membaca kode. Sekitar
