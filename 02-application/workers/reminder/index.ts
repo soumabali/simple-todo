@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { neon, neonConfig } from "@neondatabase/serverless";
 import { and, eq, lte, sql } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import { buildPushHTTPRequest } from "@pushforge/builder";
@@ -42,6 +42,115 @@ export interface Env {
 }
 
 const BATCH = 200;
+
+/**
+ * Retry/timeout budget for one Neon HTTP query.
+ *
+ * Kept as a local copy rather than imported from `src/lib/db-resilience.ts`:
+ * this Worker is bundled separately and imports nothing from the Next.js app
+ * except the Drizzle schema. Duplicating four small primitives is the cheaper
+ * price than coupling the two bundles — but the two copies must not drift, so
+ * `workers/reminder/resilience.test.ts` pins the same behaviour the app-side
+ * test does.
+ *
+ * The cron Worker hits the same Neon pooler as the web Worker, so it is exposed
+ * to the same intermittent hang that took ~5% of board page loads down
+ * (issue #19). Without this, a hung fetch fails the whole cron run.
+ */
+const FETCH_ATTEMPTS = 3;
+const FETCH_TIMEOUT_MS = 8_000;
+
+/** Transient = worth another attempt. A SQL error is not. */
+const FATAL_SQLSTATES = new Set([
+  "23505", "23503", "23502", "23514", "23P01", "22001", "22007", "22P02",
+  "42P01", "42703", "42601", "42501", "28000", "28P01",
+]);
+const TRANSIENT_SQLSTATES = new Set([
+  "08000", "08001", "08003", "08004", "08006", "08007",
+  "40001", "40003", "53000", "53100", "53200", "53300",
+  "57P01", "57P02", "57P03",
+]);
+const TRANSIENT_PATTERNS = [
+  /failed query/i, /connection (terminated|closed|reset|refused)/i,
+  /econnreset|econnrefused|etimedout|epipe|enotfound|eai_again/i,
+  /socket hang ?up/i, /fetch failed/i, /network connection lost/i,
+  /timeout|timed out/i, /too many (connections|clients)/i,
+  /remaining connection slots/i, /server (closed|unexpectedly)/i,
+  /terminating connection/i,
+];
+
+function readCode(err: unknown): string | undefined {
+  let cur: unknown = err;
+  for (let depth = 0; depth < 5 && cur && typeof cur === "object"; depth++) {
+    const c = (cur as { code?: unknown }).code;
+    if (typeof c === "string") return c;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
+
+function readMessage(err: unknown): string {
+  if (!err) return "";
+  if (typeof err === "string") return err;
+  const parts: string[] = [];
+  let cur: unknown = err;
+  for (let depth = 0; depth < 5 && cur && typeof cur === "object"; depth++) {
+    const m = (cur as { message?: unknown }).message;
+    if (typeof m === "string") parts.push(m);
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return parts.length ? parts.join(" | ") : String(err);
+}
+
+export function isTransientDbError(err: unknown): boolean {
+  if (err == null) return false;
+  const code = readCode(err);
+  if (code && FATAL_SQLSTATES.has(code)) return false;
+  if (code && TRANSIENT_SQLSTATES.has(code)) return true;
+  const name = (err as { name?: string })?.name;
+  if (name === "AbortError" || name === "TimeoutError") return true;
+  const msg = readMessage(err);
+  return !!msg && TRANSIENT_PATTERNS.some((re) => re.test(msg));
+}
+
+/** `fetch` wrapper installed into `neonConfig.fetchFunction`. */
+export const resilientFetch = async (
+  input: Request,
+  init?: RequestInit
+): Promise<Response> => {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= FETCH_ATTEMPTS; attempt++) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        // `globalThis.fetch` — NOT a bare `fetch(...)`. This module exports its
+        // own `fetch` handler at the bottom (the Worker entry point), which
+        // shadows the global inside this file. A bare call would recurse into
+        // our own handler instead of performing an HTTP request.
+        globalThis.fetch(input, init),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            const e = new Error(`neon query timed out after ${FETCH_TIMEOUT_MS}ms`);
+            e.name = "TimeoutError";
+            reject(e);
+          }, FETCH_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientDbError(err) || attempt === FETCH_ATTEMPTS) throw err;
+      await new Promise<void>((r) => setTimeout(r, Math.min(150 * 2 ** (attempt - 1), 2_000)));
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+  throw lastErr;
+};
+
+// Installed once at module scope: `runReminder` may be invoked many times per
+// Worker instance (per cron tick, and on manual invocation), and the config is
+// global to the driver.
+neonConfig.fetchFunction = resilientFetch;
 
 export async function runReminder(env: Env) {
   const sqlClient = neon(env.DATABASE_URL);
