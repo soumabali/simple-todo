@@ -20,8 +20,16 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Duplicate names are rejected with a friendly 400 rather than the DB
     // unique-constraint 500 (BUG-10). Race-safe: catch 23505 as a fallback.
+    //
+    // `and(...)` is required here, not the `a && b` shorthand. With `&&` the
+    // second operand is never evaluated as a filter: JS evaluates `e(l.boardId,
+    // id)` to an object (always truthy), so the expression short-circuits to
+    // that single condition and the name check is dropped. The effect is that a
+    // label name becomes unique ACROSS BOARDS even though the DB index is
+    // `uq_labels_board_name (board_id, name)` — so a second board can never
+    // have a label called e.g. "urgent" if any other board already has one.
     const existing = await db.query.labels.findFirst({
-      where: (l, { eq: e }) => e(l.boardId, id) && e(l.name, name),
+      where: (l, { eq: e, and: a }) => a(e(l.boardId, id), e(l.name, name)),
     });
     if (existing) throw new ApiError("BAD_REQUEST", "Label already exists");
 
