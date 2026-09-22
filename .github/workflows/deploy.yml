@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  # Manual trigger. Without this there is no way to exercise the deploy path on
+  # demand: it only runs on push to main, so a broken deploy can only be
+  # discovered by merging something (see #22, where the failure hid for ~30h
+  # because every PR run merely SKIPPED this job and still reported success).
+  workflow_dispatch:
 
 # Least privilege by default. This repository is public, so a workflow that only
 # needs to read the checkout should not carry a write-capable GITHUB_TOKEN: if a
@@ -101,7 +106,13 @@ jobs:
 
   deploy:
     needs: verify
-    if: github.event_name == 'push'
+    # Deploy on a real push to main/develop, or when a maintainer asks for it by
+    # hand. The old condition was `event_name == 'push'`, which meant a broken
+    # deploy could only ever be discovered by merging something -- exactly how
+    # #22 (token rejected, 9109) kept production frozen on the 2026-09-20 build
+    # for ~30h while every PR run merely SKIPPED this job and still reported
+    # success. Manual runs must therefore be allowed through.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:

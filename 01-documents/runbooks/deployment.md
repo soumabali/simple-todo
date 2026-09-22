@@ -162,6 +162,37 @@ salah ketik argumen tidak bisa menghapus user nyata. Verifikasi:
   `crypto.scryptSync` terlihat setara tapi **tidak**: better-auth memakai salt
   16 byte sebagai **string hex**, bukan Buffer. Hasilnya `401
   INVALID_EMAIL_OR_PASSWORD` untuk password yang baru saja kamu set.
+- **`deploy` di-SKIP pada PR, dan run-nya tetap `success`.** Job `deploy` hanya
+  berjalan pada `push` ke `main`/`develop` (atau `workflow_dispatch`). Pada
+  `pull_request` ia **skipped** — dan GitHub melaporkan run-nya **hijau**. Jadi
+  "CI hijau di PR" **tidak** berarti rilisnya jalan; itu hanya membuktikan job
+  `verify`. Sebelum menyatakan sesuatu "sudah tayang", jalankan
+  `gh pr checks <n>` dan **baca kolomnya**: `deploy  skipping` adalah jalur yang
+  tidak pernah dieksekusi.
+  Inilah yang membuat produksi beku ~30 jam tanpa ada yang tahu (issue #22):
+  secret `CLOUDFLARE_API_TOKEN` ditolak `9109`, tapi kegagalannya hanya muncul
+  pada push ke `main` — dan semua PR hari itu terlihat hijau.
+- **Memperbaiki trigger saja tidak cukup.** Menambahkan `workflow_dispatch` tanpa
+  melonggarkan guard `if: github.event_name == 'push'` menghasilkan tombol yang
+  **tidak men-deploy apa pun** (run 35620508589: `verify success`, `deploy
+  skipped`). Keduanya harus diubah bersama.
+- **`9109 Invalid access token` = token Cloudflare dicabut/di-rotate.** Perbarui
+  dari `/home/ubuntu/.hermes/.env`; nilainya juga dicatat di
+  `credentials/simple-todo Credentials.md`. Butuh **Workers Scripts: Edit**
+  **dan Account Settings: Read** — tanpa yang terakhir, `wrangler` gagal saat
+  `GET /accounts` walaupun izin Workers benar.
+- **Secret Actions tidak bisa dibaca kembali.** Ia *write-only*; kalau ragu,
+  `gh secret list` hanya menunjukkan tanggal, bukan nilainya. Jangan buang waktu
+  mencoba membaca secret lama untuk membandingkan — pasang ulang saja.
+- **Jangan ukur produksi dari server Tencent ini.** Host `*.nexigo.my.id`
+  gagal 20-60% dari sana, **tanpa header `cf-ray`** — artinya permintaan tidak
+  pernah sampai ke edge Cloudflare. `router.nexigo.my.id` yang selama ini
+  dianggap "sehat" pun ikut gagal, sementara host CF di luar zone kita bersih dan
+  `ping` 0% loss. Ini pernah terbaca sebagai "500 intermiten" di produksi
+  (issue #19) padahal Worker mencatat **0 error** dan jaringan lain 12/12 @ ~14ms.
+  **Pembeda yang benar: ada/tidaknya `cf-ray` pada respons.** Tidak ada `cf-ray`
+  = masalah jalur penguji, bukan aplikasi. Untuk angka error yang bisa dipercaya,
+  pakai Workers analytics, bukan pengukuran dari mesin ini.
 
 ## Rollback
 

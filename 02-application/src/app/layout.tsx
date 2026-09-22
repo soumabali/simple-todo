@@ -12,6 +12,20 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   applicationName: "FlowBoard",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "FlowBoard" },
+  // Ikon dideklarasikan lewat metadata, bukan tag <link> manual di <head>,
+  // supaya Next yang menyusun urutannya dan tidak ada tag ganda. Semuanya
+  // dirender dari public/icon.svg oleh scripts/build-icons.mjs.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/favicon.ico"],
+  },
 };
 
 export const viewport: Viewport = {
@@ -23,9 +37,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>{children}</Providers>
       </body>

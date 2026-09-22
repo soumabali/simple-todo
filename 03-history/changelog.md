@@ -2,6 +2,69 @@
 
 ## [Unreleased]
 
+### Fixed (deploy produksi mati ~30 jam — issue #22, PR #25)
+
+Produksi tetap di build `2026-09-20T08:10:29Z` selama ~30 jam, jadi perbaikan
+yang sudah di-*merge* **belum pernah tayang**. Dua cacat terpisah pada
+`.github/workflows/deploy.yml`:
+
+- **Job `deploy` di-skip pada `pull_request`, dan run-nya tetap `success`.**
+  Semua PR terlihat hijau di jalur yang tidak pernah men-deploy apa pun.
+  Kegagalannya hanya muncul saat push ke `main`.
+- **Tidak ada cara menjalankan deploy atas permintaan.** Setelah menambahkan
+  `workflow_dispatch` ternyata belum cukup — guard `if: event_name == 'push'`
+  juga men-SKIP run manual (run `35620508523`). Tombolnya ada, tapi tetap tidak
+  men-deploy.
+
+Verifikasi: dua run manual, **12/12 langkah sukses**. Produksi bergerak ke
+**`2026-09-21T15:59:16Z`**.
+
+**Pelajaran: "CI hijau" bukan bukti rilis jalan.** Job deploy yang di-skip tetap
+membuat run berstatus `success`.
+
+### Added (alat cek kesehatan produksi — PR #24)
+
+`scripts/check-production-health.py`, tiga mode: `edge` (hitung header
+`cf-ray`, bukan berapa yang 200), `analytics` (Workers analytics), `errors`
+(`Failed query` dari log Worker). Ditulis karena cara memeriksa produksi tadinya
+hanya potongan perintah ad-hoc, dan itu membuat kesimpulan mudah salah.
+
+Tiga kegagalan senyap yang ketemu saat menulisnya — semuanya jenis "output
+normal = kosong, jadi mati dan sehat terlihat identik":
+
+- `wrangler tail --format json` keluarannya **multi-baris**, bukan satu objek per
+  baris; parser per-baris menolak semua event lalu lapor "0 event".
+- `readline()` memblokir tanpa batas → skrip menggantung lewat jendelanya
+  (**terukur 172s untuk jendela 50s**).
+- `npx` → wrangler sebagai anak; `terminate()` parent meninggalkan cucu yang
+  memegang pipe.
+
+Terukur juga: `wrangler tail` butuh **~11.3s** untuk terhubung.
+
+### Catatan koreksi (500 intermiten pada `/api/boards`)
+
+Entri di bawah ditulis dari E2E `2026-09-21`. Sebagian kesimpulannya **perlu
+dikoreksi** — lihat `03-history/sessions/2026-09-22-deploy-mati-dan-koreksi-19.md`.
+
+Ringkasnya: ada **dua fenomena terpisah** yang tercampur.
+
+- **Kegagalan Neon nyata** — 14 baris `Failed query` pada `13:02`–`13:11Z`.
+  Berhenti tepat setelah deploy `15:59:16Z` tayang; nol error setelahnya sampai
+  log terakhir `18:57:57Z`. #18 memang tepat sasaran, tapi belum pernah live
+  karena deploy-nya mati.
+- **Timeout jalur penguji** dari mesin ini — sampai sekarang. Korelasi 14/14:
+  `code=000` selalu `cf-ray=NO`, `code=200` selalu `cf-ray=YES`. Artinya
+  permintaan **tidak sampai edge**.
+
+Konsekuensinya, bukti yang dikutip di entri bawah — "respons 500 yang lambat
+tidak punya `cf-ray`" — **tidak bisa dipakai untuk menyalahkan Neon**: header
+yang tidak ada itu justru penanda permintaan yang tidak sampai edge. Yang benar
+adalah klaim `wallTime` 39.6s/85.4s dari log Worker, karena itu berasal dari
+sisi Worker.
+
+#19 belum ditutup. Kriteria barunya: nol `Failed query` selama >= 24 jam sejak
+`2026-09-21T15:59:16Z`.
+
 ### Fixed (500 intermiten pada `/api/boards`)
 
 Ditemukan saat E2E penuh terhadap produksi, bukan dari membaca kode. Sekitar
@@ -17,6 +80,52 @@ lengkap: `03-history/e2e-report-2026-09-21.md`, issue #19, PR #18.
 - **Assertion E2E `4.8` hanya memeriksa `completedAt`**, tidak `progress` — padahal itulah BUG-9. Kini memeriksa keduanya.
 - **Kredensial E2E tidak lagi lewat argv.** `E2E_CREDS_FILE` membaca dari file 0600, karena env var password terlihat di `ps` dan shell history.
 - **`scripts/e2e-provision.ts`** menggantikan placeholder 4 baris, dengan penjaga yang menolak menghapus akun di luar dua fixture-nya (diverifikasi terhadap alamat asli: keluar dengan penolakan).
+
+### Added (identitas visual FlowBoard)
+
+Ikon lama: satu kotak ungu rata dengan garis monoline, dan header aplikasi tidak
+punya logo sama sekali — hanya teks. Ikon baru memakai gradasi, kilau, bayangan
+dalam, tiga kolom kanban bertingkat, dan tanda "selesai" hijau.
+
+Dua cacat teknis yang ikut diperbaiki:
+
+- **Aset tidak konsisten dengan sumbernya.** `src/app/favicon.ico` (29.331 B)
+  berbeda isinya dari `public/favicon.ico` (293 B) — dua favicon berbeda untuk
+  aplikasi yang sama. Sekarang semuanya dirender dari `public/icon.svg` oleh
+  `scripts/build-icons.mjs`.
+- **Aset penting hilang.** Tidak ada `apple-touch-icon.png` (iOS) maupun ukuran
+  16/48. `favicon.ico` kini memuat 4 ukuran (16/32/48/256) sebagai PNG.
+
+`make icons:check` **gagal** kalau ada aset yang tidak lagi cocok dengan
+`public/icon.svg`, jadi penyimpangan seperti itu tidak bisa diam-diam kembali.
+
+### Added (jalan kembali untuk deploy — #5)
+
+`scripts/rollback-deploy.py`. Sebelumnya tidak ada cara kembali selain
+men-deploy ulang dari git — dan itu tidak cukup, karena build ulang belum tentu
+identik, dan kalau bug-nya ada di `main` maka men-deploy ulang akan
+mengembalikannya.
+
+Empat hal yang ketemu saat mengujinya dengan rollback sungguhan:
+
+- `/deployments` mengembalikan `{"result": {"deployments": [...]}}` dan
+  `/versions` mengembalikan `{"result": {"items": [...]}}` — bukan list
+  langsung seperti dugaan awal.
+- `wrangler rollback` menerima id secara **posisional**, bukan `--version-id`.
+  Flag yang salah memberi error menyesatkan: "version could not be found",
+  bukan "flag tidak dikenal".
+- **`?force=true` wajib** kalau ada secret yang berubah sejak versi itu
+  (code 10220). Rollback memang dimaksudkan memakai environment saat ini.
+- Id 8 karakter (format yang ditampilkan UI Cloudflare) ditolak; pencocokan
+  sekarang menerima awalan dengan ambang minimum 8 karakter.
+
+### Fixed (advisory npm — #6)
+
+`wrangler` 4.130.0 → 4.136.1, menutup `wrangler`, `miniflare`, `sharp`.
+**11 advisory (4 high) → 8 (1 high).** Sisa `high` = postcss, ada di PR #23.
+Sisanya (`drizzle-kit`, `next`, `vitest`) hanya bisa ditutup dengan
+semver-major dan sengaja tidak disentuh. Semuanya build tooling:
+`npm audit --omit=dev` menunjukkan angka yang sama.
 
 ### Added (Lisensi MIT)
 
