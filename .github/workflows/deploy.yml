@@ -80,13 +80,29 @@ jobs:
       - run: python3 ../scripts/check-repo-files.py --self-test
       - run: python3 ../scripts/check-repo-files.py
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
-      - run: npm run build
-        env:
+      # Bundle boundary: the deferred npm advisories (postcss, sharp, miniflare,
+      # esbuild) are deferred on the grounds that they never reach a deployed
+      # Worker. `npm audit --omit=dev` does NOT show that -- it still reports
+      # them, because they enter through production dependencies even when the
+      # bundler drops them. This checks the artifact instead of the manifest, so
+      # the claim is evidence rather than prose.
+      #
+      # `opennextjs-cloudflare build` shells out to `npm run build` internally,
+      # so it needs the SAME build-time env as the plain build below. Running it
+      # without those vars failed with "DATABASE_URL is not set" while
+      # collecting page data -- the env block has to be on every step that
+      # triggers a Next build, not just the one named `npm run build`.
+      - run: npx opennextjs-cloudflare build
+        env: &build-env
           # Build only needs these to exist; it does not connect to the DB at
           # build time, but better-auth and the VAPID getter read them lazily.
           DATABASE_URL: ${{ secrets.NEON_DEVELOP_URL || env.DATABASE_URL_PLACEHOLDER }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET_PLACEHOLDER }}
           BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL || 'https://todo.nexigo.my.id' }}
+      - run: python3 ../scripts/check-bundle-boundary.py --self-test
+      - run: python3 ../scripts/check-bundle-boundary.py
+      - run: npm run build
+        env: *build-env
 
   deploy:
     needs: verify
