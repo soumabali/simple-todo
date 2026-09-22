@@ -55,6 +55,15 @@ BOT_MARKER = util.BOT_MARKER
 REPO_OWNER = util.REPO_OWNER
 
 MAX_ITEMS = 12
+
+# Labels that make our OWN issues worth an alert anyway. Filing an issue and then
+# never being told about it is how a production outage (#22, deploy dead) sat
+# unreported; "we wrote it" is not the same as "it is noise".
+ESCALATING_LABELS = frozenset({
+    "priority: high",
+    "status: blocked",
+    "type: security",
+})
 MAX_SNIPPET = util.MAX_SNIPPET
 
 gh = util.gh
@@ -104,17 +113,31 @@ def build_report(state: dict) -> tuple[str, dict]:
         number = item["number"]
         key = f"{number}"
         is_pr = "pull_request" in item
-        if key not in seen_items and not is_ours(item.get("body"), (item.get("user") or {}).get("login")):
-            scan_result = scan(f"{item.get('title','')}\n\n{item.get('body') or ''}")
-            new_items.append({
-                "number": number,
-                "is_pr": is_pr,
-                "title": item.get("title") or "",
-                "author": (item.get("user") or {}).get("login") or "?",
-                "url": item.get("html_url") or "",
-                "labels": [l["name"] for l in item.get("labels") or []],
-                "scan": scan_result,
-            })
+        if key not in seen_items:
+            # Our own issues are recorded as seen but not alerted on by default:
+            # the maintainer wrote them, so an alert is usually noise. The bug
+            # this replaces was `if ... and not is_ours(...)`, which skipped the
+            # whole block -- including `seen_items.add(key)`. Own items were
+            # therefore never recorded, stayed "new" on every poll forever, and
+            # #19 and #22 (a production outage) reached Telegram zero times.
+            own = is_ours(item.get("body"), (item.get("user") or {}).get("login"))
+            labels = [l["name"] for l in item.get("labels") or []]
+            # ...but "our own" is not the same as "not worth saying". An outage we
+            # filed ourselves is exactly the thing that must not be silent, so
+            # own items still surface when they carry an escalating label.
+            escalate_own = own and any(l in ESCALATING_LABELS for l in labels)
+            if not own or escalate_own:
+                scan_result = scan(f"{item.get('title','')}\n\n{item.get('body') or ''}")
+                new_items.append({
+                    "number": number,
+                    "is_pr": is_pr,
+                    "title": item.get("title") or "",
+                    "author": (item.get("user") or {}).get("login") or "?",
+                    "url": item.get("html_url") or "",
+                    "labels": labels,
+                    "scan": scan_result,
+                    "own": own,
+                })
             seen_items.add(key)
 
         if item.get("comments", 0) > 0:
@@ -163,10 +186,16 @@ def build_report(state: dict) -> tuple[str, dict]:
     for item in new_items[:MAX_ITEMS]:
         kind = "PR" if item["is_pr"] else "Issue"
         badge = {"high": "🚨", "medium": "⚠️", "low": "·", "none": "·", "unknown": "❓"}[item["scan"]["severity"]]
+        if item.get("own"):
+            # Say why this one of ours is being reported -- otherwise it looks
+            # like the notifier changed its mind about our own issues.
+            badge = "🔔"
         lines.append(f"{badge} *{kind} #{item['number']}* oleh `{item['author']}`")
         lines.append(f"   {sanitize(item['title'])}")
         if item["labels"]:
             lines.append(f"   label: {', '.join(sanitize(l, 40) for l in item['labels'])}")
+        if item.get("own"):
+            lines.append("   ↑ issue kita sendiri, dilaporkan karena labelnya mendesak")
         rules = sorted({h["rule"] for h in item["scan"]["hits"]})
         if rules:
             lines.append(f"   ⚠️ terdeteksi: {', '.join(rules)}")
@@ -228,12 +257,56 @@ def _self_test() -> int:
     finally:
         util.SCANNER = real_scanner
 
+    # `is_ours` alone was not enough: the bug lived in build_report's loop, which
+    # this fixture set never exercised. The old condition
+    # `if key not in seen_items and not is_ours(...)` skipped seen_items.add()
+    # along with the alert, so our own issues stayed "new" forever and were
+    # reported zero times -- including a production outage (#22). Both halves
+    # matter: recorded AND not alerted.
+    def fake_items() -> list[dict]:
+        return [
+            {"number": 900, "title": "our own issue", "html_url": "u1", "comments": 0,
+             "labels": [], "user": {"login": "soumabali"},
+             "body": "text <!-- ame-bot -->"},
+            {"number": 901, "title": "stranger issue", "html_url": "u2", "comments": 0,
+             "labels": [], "user": {"login": "someone-else"}, "body": "ordinary report"},
+            {"number": 902, "title": "our own OUTAGE", "html_url": "u3", "comments": 0,
+             "labels": [{"name": "priority: high"}, {"name": "status: blocked"}],
+             "user": {"login": "soumabali"}, "body": "deploy dead <!-- ame-bot -->"},
+        ]
+
+    global fetch_items, fetch_comments
+    real_fetch, real_comments = fetch_items, fetch_comments
+    try:
+        fetch_items = fake_items
+        fetch_comments = lambda number: []
+        report, state = build_report({"seen_items": [], "seen_comments": []})
+        check("own issue is recorded as seen", "900" in state["seen_items"], True)
+        check("stranger issue is recorded as seen", "901" in state["seen_items"], True)
+        check("own issue is not alerted", "our own issue" not in report, True)
+        check("stranger issue is alerted", "stranger issue" in report, True)
+        # The rule that matters for outages: an issue WE filed still has to reach
+        # the maintainer when it is labelled urgent. #22 was exactly this and was
+        # never reported.
+        check("own URGENT issue IS alerted", "our own OUTAGE" in report, True)
+        check("escalation is explained in the report",
+              "issue kita sendiri" in report, True)
+        # Second poll: nothing is new any more, so the notifier must print nothing
+        # (cron treats stdout as the message, so a re-report every 15 min is noise).
+        report2, _ = build_report(state)
+        check("second poll is silent", report2, "")
+        # ...including the escalated one: escalation is a delivery decision, not a
+        # licence to repeat forever.
+        check("escalated item does not repeat", "our own OUTAGE" not in report2, True)
+    finally:
+        fetch_items, fetch_comments = real_fetch, real_comments
+
     if failures:
         print(f"FAIL: {len(failures)} notifier fixtures failed")
         print("\n".join(failures))
         return 1
     print("OK: notifier fixtures passed (marker forgery rejected, display sanitised, "
-          "empty stdout contract intact)")
+          "own issues recorded-but-never-alerted, empty stdout contract intact)")
     return 0
 
 
