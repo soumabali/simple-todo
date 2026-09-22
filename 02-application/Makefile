@@ -1,12 +1,20 @@
 # Thin wrapper around the npm scripts — the npm scripts are the source of truth.
 # Deploy happens in CI (GitHub Actions → Cloudflare), not from this Makefile.
-.PHONY: dev build start test lint typecheck check deploy
+.PHONY: dev build start test lint typecheck check deploy icons icons-check
 
 dev:
 	npm run dev
 
 build:
 	npm run build
+
+# Semua ikon (favicon, apple-touch, PWA) dirender dari public/icon.svg.
+# `icons:check` gagal kalau ada aset yang tidak lagi cocok dengan sumbernya.
+icons:
+	npm run icons
+
+icons-check:
+	npm run icons:check
 
 start:
 	npm run start
@@ -20,8 +28,8 @@ lint:
 typecheck:
 	npm run typecheck && npm run typecheck:worker
 
-check: typecheck lint test maintainer-tools
-	@echo "✅ typecheck + lint + tests + secret scan + maintainer tools passed"
+check: typecheck lint test icons:check maintainer-tools
+	@echo "✅ typecheck + lint + tests + icons + secret scan + maintainer tools passed"
 
 # Fails if a tracked file carries a credential-shaped value. This repo is
 # PUBLIC and once shipped a live test password; see 03-history/changelog.md.

@@ -81,6 +81,52 @@ lengkap: `03-history/e2e-report-2026-09-21.md`, issue #19, PR #18.
 - **Kredensial E2E tidak lagi lewat argv.** `E2E_CREDS_FILE` membaca dari file 0600, karena env var password terlihat di `ps` dan shell history.
 - **`scripts/e2e-provision.ts`** menggantikan placeholder 4 baris, dengan penjaga yang menolak menghapus akun di luar dua fixture-nya (diverifikasi terhadap alamat asli: keluar dengan penolakan).
 
+### Added (identitas visual FlowBoard)
+
+Ikon lama: satu kotak ungu rata dengan garis monoline, dan header aplikasi tidak
+punya logo sama sekali — hanya teks. Ikon baru memakai gradasi, kilau, bayangan
+dalam, tiga kolom kanban bertingkat, dan tanda "selesai" hijau.
+
+Dua cacat teknis yang ikut diperbaiki:
+
+- **Aset tidak konsisten dengan sumbernya.** `src/app/favicon.ico` (29.331 B)
+  berbeda isinya dari `public/favicon.ico` (293 B) — dua favicon berbeda untuk
+  aplikasi yang sama. Sekarang semuanya dirender dari `public/icon.svg` oleh
+  `scripts/build-icons.mjs`.
+- **Aset penting hilang.** Tidak ada `apple-touch-icon.png` (iOS) maupun ukuran
+  16/48. `favicon.ico` kini memuat 4 ukuran (16/32/48/256) sebagai PNG.
+
+`make icons:check` **gagal** kalau ada aset yang tidak lagi cocok dengan
+`public/icon.svg`, jadi penyimpangan seperti itu tidak bisa diam-diam kembali.
+
+### Added (jalan kembali untuk deploy — #5)
+
+`scripts/rollback-deploy.py`. Sebelumnya tidak ada cara kembali selain
+men-deploy ulang dari git — dan itu tidak cukup, karena build ulang belum tentu
+identik, dan kalau bug-nya ada di `main` maka men-deploy ulang akan
+mengembalikannya.
+
+Empat hal yang ketemu saat mengujinya dengan rollback sungguhan:
+
+- `/deployments` mengembalikan `{"result": {"deployments": [...]}}` dan
+  `/versions` mengembalikan `{"result": {"items": [...]}}` — bukan list
+  langsung seperti dugaan awal.
+- `wrangler rollback` menerima id secara **posisional**, bukan `--version-id`.
+  Flag yang salah memberi error menyesatkan: "version could not be found",
+  bukan "flag tidak dikenal".
+- **`?force=true` wajib** kalau ada secret yang berubah sejak versi itu
+  (code 10220). Rollback memang dimaksudkan memakai environment saat ini.
+- Id 8 karakter (format yang ditampilkan UI Cloudflare) ditolak; pencocokan
+  sekarang menerima awalan dengan ambang minimum 8 karakter.
+
+### Fixed (advisory npm — #6)
+
+`wrangler` 4.130.0 → 4.136.1, menutup `wrangler`, `miniflare`, `sharp`.
+**11 advisory (4 high) → 8 (1 high).** Sisa `high` = postcss, ada di PR #23.
+Sisanya (`drizzle-kit`, `next`, `vitest`) hanya bisa ditutup dengan
+semver-major dan sengaja tidak disentuh. Semuanya build tooling:
+`npm audit --omit=dev` menunjukkan angka yang sama.
+
 ### Added (Lisensi MIT)
 
 - **`LICENSE` (MIT)** dan `license: "MIT"` pada `02-application/package.json`. Repo ini publik dan menerima PR, tetapi tidak punya lisensi — sehingga hak cipta default berlaku (*all rights reserved*) dan kontribusi dari luar masuk tanpa izin yang jelas (*inbound=outbound*). Keputusan dicatat sebagai **ADR-001**, termasuk alasan menolak AGPL-3.0: ini aplikasi self-hosted, bukan layanan jaringan, jadi kewajiban "perubahan harus tetap terbuka" tidak memberi manfaat yang sepadan.

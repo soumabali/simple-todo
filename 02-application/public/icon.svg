@@ -1,10 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="96" fill="#6366f1"/>
-  <g fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="96" y="120" width="320" height="272" rx="24"/>
-    <line x1="96" y1="200" x2="416" y2="200"/>
-    <line x1="200" y1="200" x2="200" y2="392"/>
-    <line x1="304" y1="200" x2="304" y2="392"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="FlowBoard">
+  <defs>
+    <!-- Latar bergradasi: memberi kedalaman yang tidak dimiliki fill rata. -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#818cf8"/>
+      <stop offset="0.45" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+    <!-- Kilau lembut di kiri atas, meniru cahaya jatuh. -->
+    <radialGradient id="glow" cx="0.28" cy="0.22" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Bayangan dalam untuk tepi bawah, supaya kotaknya terasa padat, bukan datar. -->
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#1e1b4b" stop-opacity="0.30"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1e1b4b" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <!-- Badan ikon -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#shade)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+
+  <!-- Tiga kolom kanban: tinggi bertingkat supaya terasa seperti papan kerja,
+       bukan tiga kotak seragam. -->
+  <g filter="url(#soft)">
+    <rect x="96"  y="150" width="96" height="212" rx="26" fill="#ffffff" fill-opacity="0.95"/>
+    <rect x="208" y="118" width="96" height="244" rx="26" fill="#ffffff" fill-opacity="0.95"/>
+    <rect x="320" y="176" width="96" height="186" rx="26" fill="#ffffff" fill-opacity="0.95"/>
   </g>
-  <path d="M144 262 h40 l10 20 l20 -46 l14 26 h32" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Kartu-kartu di dalam kolom: garis indigo lembut, menandakan isi. -->
+  <g stroke="#4f46e5" stroke-opacity="0.55" stroke-width="13" stroke-linecap="round">
+    <line x1="118" y1="196" x2="170" y2="196"/>
+    <line x1="118" y1="228" x2="150" y2="228"/>
+    <line x1="118" y1="260" x2="164" y2="260"/>
+
+    <line x1="230" y1="164" x2="282" y2="164"/>
+    <line x1="230" y1="196" x2="258" y2="196"/>
+    <line x1="230" y1="228" x2="278" y2="228"/>
+    <line x1="230" y1="260" x2="252" y2="260"/>
+
+    <line x1="342" y1="222" x2="394" y2="222"/>
+    <line x1="342" y1="254" x2="370" y2="254"/>
+  </g>
+
+  <!-- Tanda "selesai" pada kartu teratas kolom ketiga: pembeda yang membuat
+       ikon ini terbaca sebagai papan tugas, bukan diagram batang. -->
+  <g transform="translate(342 200)">
+    <circle cx="0" cy="0" r="17" fill="#22c55e"/>
+    <path d="M-8 0 l6 6 l11 -12" fill="none" stroke="#ffffff" stroke-width="7"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
 </svg>
