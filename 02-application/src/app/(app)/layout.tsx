@@ -1,30 +1,33 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { decideShell } from "@/lib/access";
 import { AppShell } from "@/components/app-shell";
 
 /**
  * Server layout for authenticated pages (runs on the Node runtime).
- * Does full session validation — forced password change and admin-only
- * redirects (404 semantics) that the edge middleware cannot.
+ *
+ * The rules live in `@/lib/access` as a pure function so they can be unit
+ * tested; this file only wires them to the session and the `x-pathname` header
+ * that the middleware sets.
+ *
+ * None of these gates can live in the edge middleware: it is Edge-safe, so it
+ * cannot import better-auth to read the session, and it can only check that a
+ * session cookie is *present*.
  */
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const h = await headers();
+  const session = await auth.api.getSession({ headers: h });
 
-  if (!session) {
-    redirect("/login");
+  const decision = decideShell(session, h.get("x-pathname") ?? "");
+
+  if (decision.action === "redirect") {
+    redirect(decision.to);
+  }
+  if (decision.action === "notFound") {
+    // PRD: 404 rather than 403, so the admin area's existence is not disclosed.
+    notFound();
   }
 
-  const user = session.user as any;
-
-  // Forced password change (PRD F-1.3).
-  if (user.mustChangePassword) {
-    redirect("/change-password");
-  }
-
-  // Admin-only routes: non-admins are sent to /boards (the middleware
-  // already gates, but double-check here for the 404 semantics).
-  // (Route-level enforcement is in requireAdmin on each /api/admin/* route.)
-
-  return <AppShell initialUser={user}>{children}</AppShell>;
+  return <AppShell initialUser={session!.user as any}>{children}</AppShell>;
 }

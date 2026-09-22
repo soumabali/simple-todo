@@ -4,8 +4,9 @@ import { NextResponse, NextRequest } from "next/server";
  * Edge-safe middleware — does NOT import better-auth (its Node `crypto` usage
  * is not supported on the Edge runtime).
  *
- * It only does a lightweight cookie-presence check and handles the forced
- * password-change / admin redirects are done in the server layout, which runs
+ * It only does a lightweight cookie-presence check and exposes the pathname via
+ * the `x-pathname` request header. The real gates (session validity, forced
+ * password change, admin-only 404) are applied in the server layout, which runs
  * on the Node runtime and can call auth.api.getSession().
  */
 
@@ -55,7 +56,13 @@ export default function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  // Expose the pathname to server components. A layout receives no URL, so the
+  // admin gate in `(app)/layout.tsx` reads it from here. Without this the gate
+  // cannot work — which is exactly how non-admins used to get HTTP 200 on
+  // /admin/users.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
