@@ -39,10 +39,61 @@ meng-*merge* PR, rollback, deploy. Lihat
 
 ## 2. Kill switch
 
-Urutannya dari yang paling cepat batas dampaknya.
+Urutannya dari yang paling cepat batas dampaknya. **Tiga lapis, dan lapis 1
+bekerja ketika lapis 2 dan 3 tidak bisa.**
 
-**Hentikan notifikasi tiap 15 menit** (satu-satunya otomasi yang berjalan
-sekarang):
+### Lapis 1 — satu file, tanpa Hermes, tanpa `gh`
+
+```bash
+mkdir -p ~/.hermes/cron
+touch ~/.hermes/cron/simple-todo-STOP      # hentikan semua otomasi repo
+rm ~/.hermes/cron/simple-todo-STOP         # lanjutkan lagi
+```
+
+Isi file **boleh kosong**. Kalau diisi, teksnya dipakai sebagai alasan dan ikut
+muncul di pesan berhenti — jadi tulislah sebabnya, bukan sekadar `stop`:
+
+```bash
+printf 'halted 2026-09-21: triage melabeli issue yang salah\n' \
+  > ~/.hermes/cron/simple-todo-STOP
+```
+
+Semua otomasi repo ini membaca file ini sebelum menulis apa pun:
+
+| Skrip | Yang berhenti |
+|---|---|
+| `triage-issues.py` | **Tidak jadi berjalan sama sekali** — tidak membaca, tidak melabeli, tidak menulis ledger |
+| `notify-issues.py` | Laporan tidak dikirim (tidak ada push Telegram) |
+
+Yang **tidak** berhenti: CI. File ini milik Hermes, dan runner GitHub tidak bisa
+membacanya. Untuk menghentikan deploy, lihat lapis 3.
+
+**Kenapa file, bukan environment variable atau flag.** `triage-issues.py` berjalan
+dari cron dengan `PATH=/usr/bin:/bin`; mengubah lingkungan di sana berarti
+menyunting crontab atau unit file — lambat, mudah salah, dan tidak terlihat oleh
+orang yang sedang berusaha menghentikannya. File bisa disentuh dalam satu detik
+dari mana saja, dan keberadaannya menjelaskan dirinya sendiri kepada orang
+berikutnya.
+
+**Kalau file ini tidak bisa dibaca, otomasi berhenti.** Gagal-ke-arah-berhenti
+disengaja: otomasi yang terus menulis ke repo publik saat insiden jauh lebih
+buruk daripada otomasi yang berhenti karena alarm palsu. Ada fixture untuk kedua
+arah — berhenti saat file ada, dan **melanjutkan saat file dihapus** — karena
+kesalahan yang paling mudah terjadi adalah membuat "tidak ada file" berarti
+berhenti juga, yang mengubah kill switch menjadi jebakan permanen.
+
+Verifikasi tanpa menghentikan apa pun:
+
+```bash
+python3 scripts/triage-issues.py --self-test   # fixture kill switch ikut jalan
+python3 scripts/notify-issues.py --status      # baris "halted:" di akhir
+```
+
+### Lapis 2 — pause job cron-nya
+
+Lapis 1 sudah cukup dalam hampir semua kasus. Pause dipakai bila job-nya sendiri
+yang bermasalah (mis. menyala tapi tidak melakukan apa-apa, sehingga lebih jujur
+dimatikan daripada dibiarkan menumpuk):
 
 ```
 hermes cron pause 03853873fed3          # job: "simple-todo: notifikasi issue & PR"
@@ -61,7 +112,7 @@ cukup menghapusnya, tanpa khawatir tentang keputusan orang yang tertimpa:
 gh issue edit <nomor> --remove-label "automation: needs-human"
 ```
 
-**Hentikan deploy otomatis** (kalau CI men-deploy sesuatu yang buruk):
+### Lapis 3 — hentikan deploy otomatis
 
 ```bash
 # 1. Nonaktifkan workflow deploy tanpa menghapus file

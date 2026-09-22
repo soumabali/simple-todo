@@ -404,7 +404,14 @@ def summary_line(counters: dict) -> str:
 
 
 def run(dry_run: bool = False) -> tuple[str, dict]:
-    """Triage every open issue. Returns (report, counters)."""
+    """Triage every open issue. Returns (report, counters).
+
+    Halts before reading anything when the kill switch is engaged: a triage run
+    that races an incident would keep labelling issues with whatever it thinks
+    it knows, and the labels would then be cited as if a human had decided them.
+    """
+    util.require_not_halted("triage")
+
     items = fetch_open_items()
     counters = {"scanned": 0, "changed": 0, "escalated": 0, "skipped": 0,
                 "unclassified": 0, "failed": 0, "escalations_suppressed": 0,
@@ -770,6 +777,79 @@ def _self_test() -> int:
     else:
         check("failed label: successful issue still recorded", bool(row_ok["labels_added"]), True)
 
+    # 13. Kill switch: when engaged, the run must do nothing at all -- no reads,
+    #     no label writes, no ledger. Each of those three is a separate hole:
+    #     a run that only skips writes still burns API quota, and one that skips
+    #     reads but writes is the original bug.
+    #     Driven through `run()` rather than by calling require_not_halted
+    #     directly, because the thing that can regress is the *call site*, not
+    #     the guard.
+    real_gh3 = util.gh
+    real_fetch3 = fetch_open_items
+    halted_calls: list[list[str]] = []
+    real_switch = util.KILL_SWITCH_PATH
+    switch_dir = Path(tempfile.mkdtemp(prefix="triage-switch-"))
+    real_ledger_halt = LEDGER_PATH
+    real_state_halt = STATE_PATH
+    LEDGER_PATH = switch_dir / "ledger.jsonl"
+    STATE_PATH = switch_dir / "state.json"
+    try:
+        switch = switch_dir / "STOP"
+        switch.write_text("fixture: automation intentionally halted\n", encoding="utf-8")
+        util.KILL_SWITCH_PATH = switch
+
+        def spy_gh(args: list[str], expect_json: bool = True, **_: Any) -> Any:
+            halted_calls.append(list(args))
+            return synthetic
+
+        util.gh = spy_gh
+        globals()["fetch_open_items"] = lambda: synthetic
+        raised: str | None = None
+        try:
+            run(dry_run=False)
+        except util.AutomationHalted as exc:
+            raised = str(exc)
+        except Exception as exc:  # noqa: BLE001 - any other error is a wrong failure
+            raised = f"WRONG EXCEPTION: {type(exc).__name__}: {exc}"
+    finally:
+        util.gh = real_gh3
+        globals()["fetch_open_items"] = real_fetch3
+        util.KILL_SWITCH_PATH = real_switch
+        halted_ledger_exists = LEDGER_PATH.exists()
+        shutil.rmtree(switch_dir, ignore_errors=True)
+        LEDGER_PATH = real_ledger_halt
+        STATE_PATH = real_state_halt
+
+    if raised is None:
+        failures.append("  kill switch: run() completed while the switch was engaged")
+    elif not raised.startswith("triage halted"):
+        failures.append(f"  kill switch: wrong failure mode: {raised!r}")
+    if halted_calls:
+        failures.append(
+            f"  kill switch: made {len(halted_calls)} GitHub call(s) while halted: "
+            f"{halted_calls[0]}"
+        )
+    if halted_ledger_exists:
+        failures.append("  kill switch: wrote a ledger entry while halted")
+
+    # 14. An unreadable switch must HALT, not proceed. Failing open is the one
+    #     outcome that makes a kill switch worse than none: the operator
+    #     believes automation stopped. A directory in the switch's place gives a
+    #     reliable read error without needing to change file permissions (which
+    #     a root-owned cron would defeat anyway).
+    unreadable_dir = Path(tempfile.mkdtemp(prefix="triage-switch-"))
+    real_switch2 = util.KILL_SWITCH_PATH
+    try:
+        util.KILL_SWITCH_PATH = unreadable_dir  # a directory: read_text must fail
+        reason = util.kill_switch_reason()
+    finally:
+        util.KILL_SWITCH_PATH = real_switch2
+        shutil.rmtree(unreadable_dir, ignore_errors=True)
+    if not reason:
+        failures.append("  kill switch: an unreadable switch read as 'may proceed'")
+    elif "could not be read" not in reason:
+        failures.append(f"  kill switch: unreadable switch reported oddly: {reason!r}")
+
     # A preview must never claim a write it did not make.
     real_ledger3 = LEDGER_PATH
     real_state3 = STATE_PATH
@@ -793,7 +873,7 @@ def _self_test() -> int:
         failures.append("  dry run recorded labels as applied")
     check("dry run: rows flagged as preview", all(r["dry_run"] for r in dry_rows), True)
 
-    # 13. Exercise the real gh() wrapper, not a monkeypatched stand-in.
+    # 16. Exercise the real gh() wrapper, not a monkeypatched stand-in.
     #
     #     The fixtures above replace util.gh wholesale, so they can never catch a
     #     bug *inside* gh() -- and that is exactly where one lived: it forced
@@ -941,6 +1021,31 @@ def _self_test() -> int:
                 "failed", "alerted", "suppressed"):
         if f"{key}=" not in line:
             failures.append(f"  summary line lost the {key!r} counter")
+
+    # 17. The switch must release: absent -> halted-after-touch -> absent again.
+    #     Placed last and wrapped, because the tempting way to get this wrong is
+    #     to make "no switch file" itself mean halted -- which turns the halt
+    #     into a one-way latch and breaks every scheduled run until someone
+    #     notices. When that bug is present, fixture 13's run() raises early and
+    #     the suite dies before printing a single failure. Catching it here means
+    #     the diagnosis survives even when later fixtures cannot run.
+    resume_dir = Path(tempfile.mkdtemp(prefix="triage-switch-"))
+    real_switch_resume = util.KILL_SWITCH_PATH
+    try:
+        switch = resume_dir / "STOP"
+        util.KILL_SWITCH_PATH = switch
+
+        check("kill switch: absent switch means proceed",
+              util.kill_switch_reason(), None)
+        switch.write_text("engaged for fixture\n", encoding="utf-8")
+        check("kill switch: engaged switch is detected",
+              bool(util.kill_switch_reason()), True)
+        switch.unlink()
+        check("kill switch: resumes after removal",
+              util.kill_switch_reason(), None)
+    finally:
+        util.KILL_SWITCH_PATH = real_switch_resume
+        shutil.rmtree(resume_dir, ignore_errors=True)
 
     if failures:
         print(f"FAIL: {len(failures)} triage fixtures failed")

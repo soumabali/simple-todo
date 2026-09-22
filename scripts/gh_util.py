@@ -136,6 +136,57 @@ def is_ours(body: str | None, author: str | None) -> bool:
     return (author or "").lower() == REPO_OWNER.lower()
 
 
+# --- kill switch -----------------------------------------------------------
+#
+# One file stops every piece of automation. `touch` to halt, `rm` to resume.
+#
+# It is a *file* and not an env var on purpose: the triager and the watcher run
+# from cron, where editing the environment means editing crontab or a unit file
+# -- slow, easy to get wrong, and invisible to whoever is trying to stop it. A
+# path can be touched in one second from anywhere, and its existence is
+# self-evident to whoever looks next.
+#
+# The failure mode that matters is failing OPEN: automation that keeps writing
+# to a public repo during an incident is worse than automation that stops for a
+# false alarm. So an unreadable or inconsistent switch state halts.
+KILL_SWITCH_PATH = Path.home() / ".hermes" / "cron" / "simple-todo-STOP"
+
+
+class AutomationHalted(RuntimeError):
+    """Raised when the kill switch is engaged."""
+
+
+def kill_switch_reason(path: Path | None = None) -> str | None:
+    """Return why automation is halted, or None when it may proceed.
+
+    Never raises: callers decide whether a halt is fatal. Returning the reason
+    as a string (rather than a bool) is what lets the caller log *why* it
+    stopped, which is the difference between a mystery and a diagnosis.
+    """
+    target = path if path is not None else KILL_SWITCH_PATH
+    try:
+        if not target.exists():
+            return None
+        contents = target.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError as exc:
+        # Cannot prove we may proceed -> do not proceed.
+        return f"kill switch at {target} could not be read ({exc.__class__.__name__})"
+    if not contents:
+        return f"kill switch engaged ({target})"
+    return f"kill switch engaged ({target}): {contents[:200]}"
+
+
+def require_not_halted(what: str, path: Path | None = None) -> None:
+    """Raise AutomationHalted if the switch is engaged.
+
+    Call this before the first write, not at import time: a script that only
+    reads should still be able to run diagnostics while automation is halted.
+    """
+    reason = kill_switch_reason(path)
+    if reason:
+        raise AutomationHalted(f"{what} halted -- {reason}")
+
+
 def load_state(path: Path) -> dict:
     if path.exists():
         try:
