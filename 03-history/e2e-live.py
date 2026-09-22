@@ -314,7 +314,10 @@ section("8. NOTIFICATIONS")
 st, js, _ = c_admin.req("GET", "/api/notifications")
 record("8.1 list notifications 200", st == 200, f"got {st}")
 
-st, js, _ = c_admin.req("POST", "/api/notifications/read", {"all": True})
+# The route is POST /api/notifications — the handler's own doc comment used to
+# read "/api/notifications/read", which is not a route that exists. The harness
+# copied that comment and asserted 200 against a 404 for months.
+st, js, _ = c_admin.req("POST", "/api/notifications", {"all": True})
 record("8.2 mark all read 200", st == 200, f"got {st}")
 
 # ---------------- 9. SETTINGS ----------------
@@ -325,7 +328,10 @@ record("9.1 get settings 200", st == 200, f"got {st}")
 
 st, js, _ = c_admin.req("PATCH", "/api/settings/notifications", {"pushEnabled": True, "defaultTime": "09:00", "leadMinutesDue": 720})
 record("9.2 patch settings 200", st == 200, f"got {st}")
-record("9.3 settings persisted", js.get("settings",{}).get("defaultTime") == "09:00", f"defaultTime={js.get('settings',{}).get('defaultTime')}")
+# Postgres `time` columns come back as "HH:MM:SS", so an exact string compare
+# against "09:00" fails on data that is correct. Compare on the HH:MM prefix.
+_got_time = str(js.get("settings", {}).get("defaultTime", ""))
+record("9.3 settings persisted", _got_time.startswith("09:00"), f"defaultTime={_got_time}")
 
 # ---------------- 10. PUSH ----------------
 section("10. PUSH")
@@ -429,7 +435,12 @@ section("14. LOGOUT")
 st, js, _ = signout(c_admin)
 record("14.1 signout 200", st == 200, f"got {st}")
 st, js, _ = get_session(c_admin)
-record("14.2 get-session after logout -> null", st == 200 and js.get("session") is None, f"got {st} session={js.get('session')}")
+# After sign-out the endpoint returns a 200 with an empty body, so the JSON
+# parse yields None — `js.get(...)` used to crash the whole run here, which
+# meant every test after it never ran and the summary never printed.
+_no_session = (js is None) or (isinstance(js, dict) and js.get("session") is None)
+record("14.2 get-session after logout -> null", st == 200 and _no_session,
+       f"got {st} session={js.get('session') if isinstance(js, dict) else js!r}")
 
 # ---------------- SUMMARY ----------------
 print("\n\n" + "=" * 70)

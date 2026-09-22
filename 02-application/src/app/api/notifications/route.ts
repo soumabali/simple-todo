@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST /api/notifications/read — { ids } or { all: true }. */
+/** POST /api/notifications — { ids } or { all: true }. */
 export async function POST(req: NextRequest) {
   try {
     const session = await requireUser();
