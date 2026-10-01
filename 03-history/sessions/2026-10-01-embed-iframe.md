@@ -96,7 +96,7 @@ verifikasi.
 
 ## Batasan yang belum ditutup
 
-- **Diuji di Firefox 1543 (Playwright) — hasilnya sama dengan Chrome.** Parent
+- **Diuji di Firefox 155.0 (build Playwright 1543) — hasilnya sama dengan Chrome.** Parent
   dari `file://`, anak dilayani `http`:
   - `SameSite=None` → cookie dikirim ulang ✓
   - `+ Partitioned` → cookie dikirim ulang ✓ (Firefox mendukung CHIPS sejak 128)
