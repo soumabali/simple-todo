@@ -23,12 +23,19 @@ test:
 	npm test
 
 lint:
-	npx next lint --dir src
+	npm run lint
 
 typecheck:
 	npm run typecheck && npm run typecheck:worker
 
-check: typecheck lint test icons:check maintainer-tools
+# Prerequisites are *target names*, so the icon target must be spelled the way
+# it is defined above (`icons-check`). Writing `icons:check` here made make read
+# the colon as a second target pattern and refuse to parse the file at all:
+#     Makefile:31: *** multiple target patterns.  Stop.
+# That meant the command CONTRIBUTING tells every contributor to run before a PR
+# failed instantly, and CI never noticed because it invokes the npm scripts
+# directly. The dry-run step in deploy.yml exists to keep that from recurring.
+check: typecheck lint test icons-check maintainer-tools
 	@echo "✅ typecheck + lint + tests + icons + secret scan + maintainer tools passed"
 
 # Fails if a tracked file carries a credential-shaped value. This repo is
