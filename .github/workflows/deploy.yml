@@ -145,6 +145,16 @@ jobs:
       VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
       VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
       VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT || 'mailto:admin@nexigo.my.id' }}
+      # BUILD input, not a runtime var: OpenNext compiles `headers()` into a
+      # static route manifest, and this job runs its OWN build (see "Deploy web
+      # Worker" below). It therefore needs the same build inputs as `verify`.
+      #
+      # When this line was missing, setting the repo variable had NO effect on
+      # production -- the deploy build fell back to `frame-ancestors 'none'` +
+      # `X-Frame-Options: DENY`, the embed stayed dead, and the workflow still
+      # reported success because nothing compared the shipped policy against
+      # the requested one. The smoke test below now does.
+      EMBED_ALLOWED_ANCESTORS: ${{ vars.EMBED_ALLOWED_ANCESTORS || '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -205,6 +215,12 @@ jobs:
       # 6. Smoke test: assert the deployed site actually answers with the page it
       #    is supposed to serve. A plain `echo` here would report success for a
       #    Worker that is returning 500s, which is worse than no check at all.
+      #
+      #    It also asserts the SHIPPED frame policy matches the requested one.
+      #    Headers are compiled at build time, so asking for an embed and
+      #    getting `frame-ancestors 'none'` is a real failure -- and one that
+      #    this workflow used to report as success, because nothing compared
+      #    the two.
       - name: Smoke test
         run: |
           set -euo pipefail
@@ -215,5 +231,33 @@ jobs:
             echo "::error::Smoke test failed: expected 200 from $BETTER_AUTH_URL/login, got $code"
             exit 1
           fi
+
+          csp=$(curl -sI --max-time 20 --retry 3 --retry-delay 5 "$BETTER_AUTH_URL/login" \
+            | tr -d '\r' | grep -i '^content-security-policy:' || true)
+          shipped=$(printf '%s' "$csp" | grep -o "frame-ancestors [^;]*" || true)
+          echo "shipped: ${shipped:-<no frame-ancestors directive>}"
+          echo "wanted:  $EMBED_ALLOWED_ANCESTORS"
+
+          if [ -n "$EMBED_ALLOWED_ANCESTORS" ]; then
+            # Want embedding on: every configured origin must be in the policy.
+            IFS=',' read -ra wanted <<< "$EMBED_ALLOWED_ANCESTORS"
+            for o in "${wanted[@]}"; do
+              o="$(echo "$o" | xargs)"
+              [ -z "$o" ] && continue
+              if ! printf '%s' "$shipped" | grep -qF "$o"; then
+                echo "::error::Requested embed origin '$o' is missing from the shipped policy ($shipped)."
+                exit 1
+              fi
+            done
+            echo "OK: shipped frame-ancestors matches the requested allowlist"
+          else
+            # Want embedding off: the policy must be locked down.
+            if ! printf '%s' "$shipped" | grep -q "'none'"; then
+              echo "::error::No allowlist configured, but the shipped policy is not 'none' ($shipped)."
+              exit 1
+            fi
+            echo "OK: embedding off, shipped policy is 'none'"
+          fi
         env:
           BETTER_AUTH_URL: ${{ env.BETTER_AUTH_URL }}
+          EMBED_ALLOWED_ANCESTORS: ${{ env.EMBED_ALLOWED_ANCESTORS }}
