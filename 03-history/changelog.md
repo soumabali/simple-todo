@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Fixed (cookie sesi tidak dikirim di iframe — login tampak gagal)
+
+Masih bagian dari fitur embed, dan ini yang akan membuatnya tampak "hampir
+jalan". Header sudah benar (`frame-ancestors file:`), halaman **tampil** di
+dalam iframe — tapi login tidak pernah bertahan.
+
+Cookie sesi default `SameSite=Lax`, dan browser **tidak mengirim** cookie Lax
+pada permintaan di dalam iframe lintas situs. Jadi POST login berhasil, lalu
+permintaan berikutnya datang tanpa autentikasi, dan pengguna memantul kembali
+ke form login selamanya.
+
+`embedCookieAttributes()` sudah menyiapkan `SameSite=None; Secure; Partitioned`
+untuk kasus ini — tapi dibaca sebagai **variabel runtime Worker**, dan `--var`
+saat deploy hanya mengirim tiga variabel (bukan yang ini). Jadi nilainya tidak
+pernah sampai, dan cookie tetap Lax.
+
+Diperbaiki: `EMBED_ALLOWED_ANCESTORS` kini juga dikirim sebagai `--var` saat
+deploy Worker. Fungsi itu dipindahkan ke `security-headers.ts` agar bisa diuji
+tanpa menyeret inisialisasi database, dan diberi 4 tes yang menjaga kombinasi
+`None + Secure + Partitioned` (tanpa `Partitioned`, cookie jadi pengenal
+bersama di semua situs yang meng-embed kita).
+
+Diuji di browser sungguhan (Chrome dan Firefox 155): `Lax` tidak dikirim ulang
+di iframe; `None` dan `None+Partitioned` dikirim ulang. Bukti produksi: halaman
+`file://` berisi iframe ke produksi — dokumen 200, CSS/JS/font termuat, form
+login tampil.
+
 ### Fixed (`EMBED_ALLOWED_ANCESTORS` tidak berpengaruh pada produksi)
 
 Menyalakan fitur embed dengan mengeset variabel repo **tidak berefek apa pun**,

@@ -92,6 +92,18 @@ export function frameAncestorsValue(origins: string[]): string {
   return origins.length > 0 ? origins.join(" ") : "'none'";
 }
 
+export function embedCookieAttributes(
+  raw: string | undefined | null
+) {
+  const origins = parseAncestors(raw);
+  if (origins.length === 0) return {};
+  return {
+    sameSite: "None" as const,
+    secure: true,
+    partitioned: true,
+  };
+}
+
 /**
  * The full `Content-Security-Policy` value.
  *
