@@ -96,8 +96,22 @@ verifikasi.
 
 ## Batasan yang belum ditutup
 
-- **Belum diuji di Firefox.** Hanya Chrome tersedia di lingkungan ini. Dhar
-  memakai Firefox — perlu dicek manual sebelum dipakai.
+- **Diuji di Firefox 1543 (Playwright) — hasilnya sama dengan Chrome.** Parent
+  dari `file://`, anak dilayani `http`:
+  - `SameSite=None` → cookie dikirim ulang ✓
+  - `+ Partitioned` → cookie dikirim ulang ✓ (Firefox mendukung CHIPS sejak 128)
+  - `SameSite=Lax` → **tidak** dikirim ulang ✗ (seperti Chrome)
+  - `frame-ancestors file:` diterima; JS di dalam iframe berjalan, jadi
+    dokumennya benar-benar dirender, bukan sekadar header yang benar.
+
+  Catatan: Firefox mempartisi cookie pihak ketiga **secara otomatis** (Total
+  Cookie Protection aktif secara default), jadi `Partitioned` di sini sejalan
+  dengan perilaku bawaan Firefox, bukan menentangnya.
+- **Origin dari iframe `file://` adalah origin aplikasi sendiri**, bukan `null`.
+  Diukur di Firefox: POST `/login` membawa `Origin: http://127.0.0.1:8911` —
+  origin anak, bukan induk. Karena itu pemeriksaan CSRF better-auth lolos tanpa
+  perlu menambah `trustedOrigins`. (Chrome tidak mengirim header `Origin` sama
+  sekali pada permintaan same-origin — sama-sama lolos.)
 - Nilai dibaca saat **build** (OpenNext mengubah `headers()` menjadi route
   manifest statis), jadi mengubahnya butuh rebuild, bukan ganti var Worker.
 
