@@ -54,10 +54,13 @@ diketahui sebelum menyalakannya:
    pesan yang jelas. Kalau itu yang kamu butuhkan, berarti kamu butuh daftar
    origin yang spesifik — halaman jahat bisa membingkai papan dan menaruh UI
    palsu di atas kontrol admin.
-2. **Halaman lokal (`file://`) tidak dilayani wildcard.** Chrome menolak
-   `frame-ancestors *` dari parent `file://`; hanya skema `file:` eksplisit
-   yang lolos. Untuk itu, nilai harus memuat `file:` — dan hanya lakukan pada
-   mesinmu sendiri, karena artinya berkas lokal apa pun bisa membingkai papan.
+2. **Halaman lokal (`file://`) butuh nilai `file:` eksplisit.** Wildcard
+   **tidak** melayaninya: diukur di Chrome, `frame-ancestors *` menolak parent
+   `file://` sementara `frame-ancestors file:` menerimanya. Jadi untuk embed
+   dari berkas lokal, isi dengan `file:` (boleh digabung, mis.
+   `file:,https://dash.example.com`). Sadari artinya: **berkas HTML apa pun di
+   mesin itu** boleh membingkai papan, termasuk berkas hasil unduhan. Jauh lebih
+   sempit daripada `*`, tapi bukan nol.
 3. **Nilai ini dibaca saat build, bukan saat jalan.** OpenNext mengubah
    `headers()` menjadi route manifest statis. Mengubahnya butuh rebuild +
    deploy ulang, bukan sekadar mengganti var Worker.

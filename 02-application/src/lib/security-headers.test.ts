@@ -67,6 +67,34 @@ describe("parseAncestors", () => {
     expect(parseAncestors("'none'")).toEqual([]);
     expect(parseAncestors("none")).toEqual([]);
   });
+
+  it("accepts the literal 'file:' for a page opened from disk", () => {
+    // Measured in Chrome: `frame-ancestors *` refuses a file:// parent, while
+    // `frame-ancestors file:` admits it. Without this the documented local-file
+    // recipe would throw, and the only way to reach the browser-checked case
+    // would be to disable the check.
+    expect(parseAncestors("file:")).toEqual(["file:"]);
+    expect(parseAncestors("file:,https://dash.example.com")).toEqual([
+      "file:",
+      "https://dash.example.com",
+    ]);
+  });
+
+  it("still refuses things that only look like the file scheme", () => {
+    // Guard against over-relaxing the rule above: only the exact literal is
+    // allowed, and only file:// may be embedded from disk.
+    for (const bad of ["file:*", "files:", "file:/*", "file://*", "FILE://evil"]) {
+      expect(() => parseAncestors(bad)).toThrow(/not an origin/i);
+    }
+  });
+
+  it("normalises 'file://' to 'file:' rather than accepting a second spelling", () => {
+    // Trailing slashes are stripped before validation, so `file://` collapses
+    // to the same single literal. Documented here because it is a real
+    // behaviour: there is exactly one file-scheme value in the output.
+    expect(parseAncestors("file://")).toEqual(["file:"]);
+    expect(parseAncestors("file://,")).toEqual(["file:"]);
+  });
 });
 
 describe("frameAncestorsValue", () => {
@@ -103,10 +131,10 @@ describe("buildSecurityHeaders", () => {
   it("never emits a wildcard frame-ancestors", () => {
     // The end-to-end guard: whatever the input, the emitted policy must not be
     // a wildcard.
-    for (const input of [undefined, "", "'none'", "https://a.example.com"]) {
+    for (const input of [undefined, "", "'none'", "https://a.example.com", "file:"]) {
       const csp = buildCsp(parseAncestors(input));
       expect(csp).not.toMatch(/frame-ancestors\s+\*/);
-      expect(csp).toMatch(/frame-ancestors\s+('none'|https?:\/\/)/);
+      expect(csp).toMatch(/frame-ancestors\s+('none'|file:|https?:\/\/)/);
     }
   });
 

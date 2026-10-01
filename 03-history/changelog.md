@@ -15,7 +15,9 @@ Dua temuan yang membentuk desainnya, keduanya diuji di browser:
 
 - **`frame-ancestors *` tidak cukup untuk halaman lokal.** Parent dari
   `file://` tidak diterima oleh wildcard; Chrome hanya meloloskan skema `file:`
-  eksplisit. Jadi "izinkan semua" bukan jawaban untuk embed dari berkas lokal.
+  eksplisit. Jadi "izinkan semua" bukan jawaban untuk embed dari berkas lokal —
+  nilai `file:` diterima sebagai gantinya (dengan konsekuensi yang dinyatakan:
+  berkas HTML apa pun di mesin itu boleh membingkai papan).
 - **Membuka header saja tidak membuat papan bisa dipakai.** Cookie sesi
   `SameSite=Lax` **ditahan** browser pada request di dalam iframe pihak ketiga:
   POST login berhasil, request berikutnya tidak terautentikasi, user memutar

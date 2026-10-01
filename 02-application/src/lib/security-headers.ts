@@ -34,6 +34,20 @@ const NONE = new Set(["'none'", "none", ""]);
 const ORIGIN = /^https?:\/\/[a-z0-9.-]+(?::\d+)?$/i;
 
 /**
+ * A page opened straight from disk has no origin — it sends `Origin: null` and
+ * its scheme is the literal `file:`. A wildcard does *not* cover it: measured
+ * in Chrome, `frame-ancestors *` refuses a `file://` parent while
+ * `frame-ancestors file:` admits it. So this is the only value that serves the
+ * "embed in a local dashboard.html" case, and it is named rather than implied.
+ *
+ * It is accepted with a caveat worth stating: it means *any* HTML file on the
+ * machine may frame FlowBoard. That is a far narrower set than `*` (every site
+ * on the web), but it is not nothing — a downloaded file gets the same access.
+ * Only list it if a local page is genuinely the intended embedder.
+ */
+const FILE_SCHEME = "file:";
+
+/**
  * Parse `EMBED_ALLOWED_ANCESTORS` (comma-separated origins, optionally
  * scheme-qualified) into a list of origins.
  *
@@ -55,10 +69,11 @@ export function parseAncestors(raw: string | undefined | null): string[] {
       );
     }
 
-    if (!ORIGIN.test(value)) {
+    if (!ORIGIN.test(value) && value.toLowerCase() !== FILE_SCHEME) {
       throw new Error(
         `EMBED_ALLOWED_ANCESTORS: "${value}" is not an origin. Expected ` +
-          `scheme://host[:port] (e.g. https://dashboard.example.com).`
+          `scheme://host[:port] (e.g. https://dashboard.example.com), or the ` +
+          `literal "file:" for a page opened from disk.`
       );
     }
 
