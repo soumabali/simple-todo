@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import * as schema from "@/db/schema";
+import { parseAncestors } from "@/lib/security-headers";
 
 /**
  * Self-hosted better-auth (PRD §6.3 Option B).
@@ -41,6 +42,39 @@ function requireEnv(name: string, recommendedLength: number): string {
   return value;
 }
 
+/**
+ * Cookie attributes for the embedded (cross-site) case.
+ *
+ * A session cookie is `SameSite=Lax` by default, and a browser *withholds* a
+ * Lax cookie from a request inside a third-party frame — the login POST
+ * succeeds and the very next request arrives unauthenticated, so the user
+ * bounces back to the login form forever. Making the board frameable without
+ * this change would produce exactly that: a page that renders but cannot be
+ * used.
+ *
+ * `SameSite=None` + `Secure` is what the browser requires to send the cookie
+ * cross-site, and `Partitioned` (CHIPS) keeps it from becoming a shared
+ * identifier across every site that embeds us: the cookie is stored in a jar
+ * keyed to the embedding top-level site.
+ *
+ * The trade-off is stated rather than hidden: `SameSite=None` gives up the
+ * browser's Lax-based CSRF mitigation for state-changing requests. The
+ * remaining defences are the origin check better-auth runs on every
+ * non-GET request (which compares against `baseURL` and rejects unknown
+ * origins), `HttpOnly`, and the `Secure` requirement. This is enabled only
+ * when an embed allowlist is configured, so a deployment that does not embed
+ * keeps the stricter default.
+ */
+function embedCookieAttributes() {
+  const origins = parseAncestors(process.env.EMBED_ALLOWED_ANCESTORS);
+  if (origins.length === 0) return {};
+  return {
+    sameSite: "None" as const,
+    secure: true,
+    partitioned: true,
+  };
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(getDb(), {
     provider: "pg",
@@ -54,6 +88,10 @@ export const auth = betterAuth({
 
   secret: requireEnv("BETTER_AUTH_SECRET", 32),
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+
+  advanced: {
+    defaultCookieAttributes: embedCookieAttributes(),
+  },
 
   emailAndPassword: {
     enabled: true,

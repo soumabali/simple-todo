@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+### Added (embed FlowBoard di iframe — opt-in per origin, bukan wildcard)
+
+FlowBoard tadinya mengirim `frame-ancestors 'none'` + `X-Frame-Options: DENY`,
+jadi tidak bisa di-embed sama sekali.
+
+Menambah `EMBED_ALLOWED_ANCESTORS` (daftar origin dipisah koma) membuat papan
+bisa di-embed — **hanya oleh origin yang disebut**. Tanpa env var itu,
+perilakunya identik dengan sebelumnya.
+
+Dua temuan yang membentuk desainnya, keduanya diuji di browser:
+
+- **`frame-ancestors *` tidak cukup untuk halaman lokal.** Parent dari
+  `file://` tidak diterima oleh wildcard; Chrome hanya meloloskan skema `file:`
+  eksplisit. Jadi "izinkan semua" bukan jawaban untuk embed dari berkas lokal.
+- **Membuka header saja tidak membuat papan bisa dipakai.** Cookie sesi
+  `SameSite=Lax` **ditahan** browser pada request di dalam iframe pihak ketiga:
+  POST login berhasil, request berikutnya tidak terautentikasi, user memutar
+  balik ke halaman login. Karena itu, saat allowlist diisi, cookie sesi
+  memakai `SameSite=None; Secure; Partitioned` (CHIPS — jar-nya dikunci ke
+  situs yang meng-embed, bukan jadi identitas bersama).
+
+Nilai `*`, `https:`, dan `http:` **ditolak dengan error**, bukan dibersihkan:
+masing-masing mengembalikan persis serangan yang dicegah default ini
+(clickjacking — halaman jahat membingkai papan dan menaruh UI palsu di atas
+kontrol admin). `X-Frame-Options` hanya dikirim selama embedding mati; ia tidak
+bisa menyatakan daftar origin dan `DENY` akan mengalahkan `frame-ancestors`.
+
+Catatan operasional: nilai ini dibaca saat **build**. OpenNext mengubah
+`headers()` menjadi route manifest statis, jadi mengubahnya butuh rebuild —
+bukan sekadar mengganti var Worker.
+
+Verifikasi: 13 tes unit (`security-headers.test.ts`), tiga di antaranya
+dibuktikan gagal saat perilakunya dimutasi. Perilaku cookie dan
+`frame-ancestors` diuji di browser sungguhan, bukan disimpulkan dari dokumen.
+
 ### Fixed (deploy produksi mati ~30 jam — issue #22, PR #25)
 
 Produksi tetap di build `2026-09-20T08:10:29Z` selama ~30 jam, jadi perbaikan

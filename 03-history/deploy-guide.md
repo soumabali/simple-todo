@@ -39,8 +39,32 @@
 |---|---|
 | `BETTER_AUTH_URL` | `https://todo.nexigo.my.id` |
 | `VAPID_SUBJECT` | `mailto:admin@nexigo.my.id` |
+| `EMBED_ALLOWED_ANCESTORS` | kosong (default: tidak bisa di-embed) |
 
 > Token fine-grained PAT tidak bisa set **variables** via API (403), tapi deploy.yml memakai `vars.X || 'default'` sehingga tetap jalan tanpa variable.
+
+### Mengizinkan FlowBoard di-embed di iframe
+
+Default-nya **tidak bisa di-embed** (anti-clickjacking). Untuk mengizinkan,
+set `EMBED_ALLOWED_ANCESTORS` berisi daftar origin yang dipisah koma, mis.
+`https://dash.example.com,https://wiki.example.com`. Tiga hal yang perlu
+diketahui sebelum menyalakannya:
+
+1. **Wildcard ditolak.** `*`, `https:`, dan `http:` membuat build gagal dengan
+   pesan yang jelas. Kalau itu yang kamu butuhkan, berarti kamu butuh daftar
+   origin yang spesifik — halaman jahat bisa membingkai papan dan menaruh UI
+   palsu di atas kontrol admin.
+2. **Halaman lokal (`file://`) tidak dilayani wildcard.** Chrome menolak
+   `frame-ancestors *` dari parent `file://`; hanya skema `file:` eksplisit
+   yang lolos. Untuk itu, nilai harus memuat `file:` — dan hanya lakukan pada
+   mesinmu sendiri, karena artinya berkas lokal apa pun bisa membingkai papan.
+3. **Nilai ini dibaca saat build, bukan saat jalan.** OpenNext mengubah
+   `headers()` menjadi route manifest statis. Mengubahnya butuh rebuild +
+   deploy ulang, bukan sekadar mengganti var Worker.
+
+Saat allowlist aktif, cookie sesi otomatis memakai
+`SameSite=None; Secure; Partitioned`. Tanpa itu login akan tampak berhasil lalu
+memutar balik ke halaman login di dalam iframe.
 
 ## Struktur CI/CD (diperbaiki)
 
