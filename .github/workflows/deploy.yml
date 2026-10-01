@@ -184,13 +184,22 @@ jobs:
 
       # 3. Deploy the web Worker (OpenNext). Public vars are passed via --var;
       #    secrets are set via `wrangler secret put` (idempotent, additive).
+      #
+      #    EMBED_ALLOWED_ANCESTORS is needed as a RUNTIME var too, not only as a
+      #    build input: `embedCookieAttributes()` reads it at request time to set
+      #    `SameSite=None; Secure; Partitioned` on session cookies. Without it
+      #    the cookie keeps the default `SameSite=Lax`, which the browser does
+      #    NOT send inside a cross-site iframe -- the page renders but signing in
+      #    never sticks. Verified in Chrome and Firefox: Lax is dropped in an
+      #    iframe, None and None+Partitioned are sent.
       - name: Deploy web Worker
         run: |
           npx opennextjs-cloudflare build
           npx opennextjs-cloudflare deploy \
             --var BETTER_AUTH_URL:"$BETTER_AUTH_URL" \
             --var VAPID_PUBLIC_KEY:"$VAPID_PUBLIC_KEY" \
-            --var VAPID_SUBJECT:"$VAPID_SUBJECT"
+            --var VAPID_SUBJECT:"$VAPID_SUBJECT" \
+            --var EMBED_ALLOWED_ANCESTORS:"$EMBED_ALLOWED_ANCESTORS"
 
       # 4. Put secrets on the web Worker (idempotent). The web Worker needs
       #    VAPID_PRIVATE_KEY too — /api/push/test and the subscribe flow call

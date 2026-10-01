@@ -3,7 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import * as schema from "@/db/schema";
-import { parseAncestors } from "@/lib/security-headers";
+import { embedCookieAttributes } from "@/lib/security-headers";
 
 /**
  * Self-hosted better-auth (PRD §6.3 Option B).
@@ -65,16 +65,6 @@ function requireEnv(name: string, recommendedLength: number): string {
  * when an embed allowlist is configured, so a deployment that does not embed
  * keeps the stricter default.
  */
-function embedCookieAttributes() {
-  const origins = parseAncestors(process.env.EMBED_ALLOWED_ANCESTORS);
-  if (origins.length === 0) return {};
-  return {
-    sameSite: "None" as const,
-    secure: true,
-    partitioned: true,
-  };
-}
-
 export const auth = betterAuth({
   database: drizzleAdapter(getDb(), {
     provider: "pg",
@@ -90,7 +80,7 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 
   advanced: {
-    defaultCookieAttributes: embedCookieAttributes(),
+    defaultCookieAttributes: embedCookieAttributes(process.env.EMBED_ALLOWED_ANCESTORS),
   },
 
   emailAndPassword: {
