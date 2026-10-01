@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Fixed (`EMBED_ALLOWED_ANCESTORS` tidak berpengaruh pada produksi)
+
+Menyalakan fitur embed dengan mengeset variabel repo **tidak berefek apa pun**,
+dan workflow tetap melaporkan **sukses**. Dua cacat bertumpuk:
+
+1. Blok `env` build (berisi `EMBED_ALLOWED_ANCESTORS`) hanya ada di job
+   `verify`. Job `deploy` menjalankan `opennextjs-cloudflare build` **sendiri**
+   dengan blok `env` terpisah, tanpa variabel itu — jadi build yang benar
+   dibuang, dan Worker yang tayang dibangun ulang dengan `frame-ancestors
+   'none'` + `X-Frame-Options: DENY`.
+2. Smoke test hanya memeriksa HTTP 200. Tidak ada yang membandingkan kebijakan
+   yang **tayang** dengan yang **diminta**, sehingga "saya minta embed" dan
+   "embed mati" sama-sama hijau.
+
+Diperbaiki: variabel ditambahkan ke `env` job `deploy`, dan smoke test kini
+membandingkan `frame-ancestors` yang benar-benar dikirim dengan allowlist yang
+diminta — gagal kalau origin yang diminta hilang, dan gagal juga kalau
+allowlist dikosongkan tapi kebijakan masih permisif. Logika penjaganya diuji
+terhadap empat skenario (termasuk kasus bug ini) sebelum dikirim.
+
 ### Fixed (`make check` tidak bisa dijalankan sama sekali)
 
 `CONTRIBUTING.md` menyuruh setiap kontributor menjalankan `make check` sebelum
