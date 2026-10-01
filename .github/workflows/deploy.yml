@@ -80,6 +80,13 @@ jobs:
       - run: python3 ../scripts/check-repo-files.py --self-test
       - run: python3 ../scripts/check-repo-files.py
       - run: npm run lint && npm run typecheck && npm run typecheck:worker && npm run test
+      # CONTRIBUTING tells contributors to run `make check` before opening a PR,
+      # but CI invoked the npm scripts directly -- so when the Makefile gained an
+      # unparseable prerequisite (`icons:check`, a colon make reads as a second
+      # target pattern) the documented command died instantly and every check
+      # stayed green. Parse it here, without running the work twice: the steps
+      # above already executed each check.
+      - run: make -n check
       # Bundle boundary: the deferred npm advisories (postcss, sharp, miniflare,
       # esbuild) are deferred on the grounds that they never reach a deployed
       # Worker. `npm audit --omit=dev` does NOT show that -- it still reports

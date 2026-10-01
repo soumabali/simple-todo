@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### Fixed (`make check` tidak bisa dijalankan sama sekali)
+
+`CONTRIBUTING.md` menyuruh setiap kontributor menjalankan `make check` sebelum
+membuka PR. Perintah itu **gagal seketika**:
+
+```
+Makefile:31: *** multiple target patterns.  Stop.
+```
+
+Prerequisite-nya ditulis `icons:check`, padahal nama targetnya `icons-check`.
+Make membaca titik dua itu sebagai pola target kedua dan menolak mem-parse file
+sama sekali. Siapa pun yang mengikuti dokumentasi mendapat kegagalan di langkah
+pertama, tanpa tahu apakah kodenya bermasalah.
+
+Tidak ada yang menangkapnya karena CI memanggil skrip npm langsung, bukan
+melalui Makefile — jadi jalur yang didokumentasikan tidak pernah dijalankan
+otomasi mana pun.
+
+Dua perbaikan:
+
+- `check:` memakai nama target yang benar (`icons-check`), dan `lint:` memakai
+  `npm run lint` (header Makefile sendiri menyatakan npm scripts adalah sumber
+  kebenaran; `npx next lint --dir src` menyaring lebih lemah — 5 warning vs 0 —
+  dan sudah deprecated di Next 15).
+- CI menjalankan `make -n check` (dry-run, tanpa mengeksekusi ulang) supaya
+  Makefile yang tidak bisa di-parse menggagalkan build. Diverifikasi: dengan bug
+  dikembalikan, exit code 2; setelah diperbaiki, 0.
+
 ### Added (embed FlowBoard di iframe — opt-in per origin, bukan wildcard)
 
 FlowBoard tadinya mengirim `frame-ancestors 'none'` + `X-Frame-Options: DENY`,
