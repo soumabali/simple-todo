@@ -63,7 +63,7 @@ Catatan operasional: nilai ini dibaca saat **build**. OpenNext mengubah
 `headers()` menjadi route manifest statis, jadi mengubahnya butuh rebuild —
 bukan sekadar mengganti var Worker.
 
-Verifikasi: 13 tes unit (`security-headers.test.ts`), tiga di antaranya
+Verifikasi: 16 tes unit (`security-headers.test.ts`), tiga di antaranya
 dibuktikan gagal saat perilakunya dimutasi. Perilaku cookie dan
 `frame-ancestors` diuji di browser sungguhan, bukan disimpulkan dari dokumen.
 
