@@ -91,7 +91,7 @@ verifikasi.
 - **Bukti browser (definitif):** harness perbandingan dari `file://` — server
   dengan `file:` merender halaman login FlowBoard yang nyata; server default
   diblokir dan menampilkan ikon halaman rusak.
-- Gate penuh hijau: 119 → **124 tes**, lint + typecheck bersih.
+- Gate penuh hijau: 119 → **122 tes**, lint + typecheck bersih.
 - Produksi setelah deploy: HTTP 200, header tetap `DENY` + `'none'`.
 
 ## Batasan yang belum ditutup
